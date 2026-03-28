@@ -245,34 +245,35 @@ print dol_get_fiche_end();
 
 // ---- JS for add/remove depth rows ----
 
-print '<script>
-var warelocDepthCount = parseInt(document.getElementById("wareloc-depth-count").textContent);
-var warelocMaxDepths  = parseInt(document.getElementById("wareloc-max-depths").textContent);
-var warelocDepthPlaceholders = '.json_encode(array_map(function ($d) use ($langs) {
+$js_placeholders  = json_encode(array_map(function ($d) use ($langs) {
 	$key = 'DepthLabelPlaceholder'.$d;
 	$val = $langs->trans($key);
 	return ($val === $key) ? $langs->trans('DepthLabelPlaceholderDefault') : $val;
-}, range(1, 8))).';
+}, range(1, 8)));
+$js_max_alert     = dol_escape_js($langs->trans('MaxDepthsReached'));
+$js_remove_title  = dol_escape_js($langs->trans('RemoveDepth'));
+
+print '<script>
+var warelocDepthCount = parseInt(document.getElementById("wareloc-depth-count").textContent);
+var warelocMaxDepths  = parseInt(document.getElementById("wareloc-max-depths").textContent);
+var warelocDepthPlaceholders = '.$js_placeholders.';
 
 function warelocAddDepthRow() {
 	if (warelocDepthCount >= warelocMaxDepths) {
-		alert("'.$langs->trans('MaxDepthsReached').'");
+		alert("'.$js_max_alert.'");
 		return;
 	}
 	warelocDepthCount++;
-	var d    = warelocDepthCount;
-	var tbody = document.querySelector("#wareloc-labels-table tbody") || document.querySelector("#wareloc-labels-table");
+	var d      = warelocDepthCount;
 	var addBtn = document.getElementById("wareloc-add-depth");
-	var row  = document.createElement("tr");
+	var row    = document.createElement("tr");
 	row.className = "oddeven wareloc-label-row";
 	row.id = "wareloc-label-row-" + d;
 	var ph = warelocDepthPlaceholders[d - 1] || "";
 	row.innerHTML =
 		"<td class=\"center opacitymedium\">" + d + "<input type=\"hidden\" name=\"depth[]\" value=\"" + d + "\"></td>" +
 		"<td><input type=\"text\" name=\"label[]\" class=\"flat minwidth200\" placeholder=\"" + ph + "\" autocomplete=\"off\"></td>" +
-		"<td class=\"center\"><a href=\"#\" onclick=\"warelocRemoveDepthRow(" + d + "); return false;\" title=\"'.dol_escape_js($langs->trans('RemoveDepth')).'\">' +
-			document.querySelector(".fa-trash, .fa-times, [alt=delete]")?.outerHTML || "×" +
-		"</a></td>";
+		"<td class=\"center\"><a href=\"#\" onclick=\"warelocRemoveDepthRow(" + d + "); return false;\" title=\"'.$js_remove_title.'\">\u00d7</a></td>";
 	addBtn.parentNode.before(row);
 	row.querySelector("input[type=text]").focus();
 	document.getElementById("wareloc-add-depth").style.display = (warelocDepthCount >= warelocMaxDepths) ? "none" : "";
