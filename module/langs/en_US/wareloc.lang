@@ -1,121 +1,98 @@
 # Copyright (C) 2026 Zachary Melo
 #
-# Wareloc module language file
-#
+# Wareloc v2 module language file
+# Uses native Dolibarr warehouse nesting (fk_parent) as the hierarchy backbone.
 
 # Module
-Module530000Name = Wareloc
-Module530000Desc = Configurable sub-warehouse location hierarchy for products (Row, Bay, Shelf, Bin)
+WarelocSetup = Wareloc Setup
+WarelocTreeBuilder = Hierarchy Tree Builder
+WarelocLevelNames = Level Names
 
 # Menu
 WarelocMenu = Warehouse Locations
-ProductLocationList = Product Locations
-NewProductLocation = New Placement
 
-# Object labels
-ProductLocation = Product Location
-ProductLocations = Product Locations
-LinkToProductLocation = Link to Product Location
+# General
+Actions = Actions
+Select = Select
+Save = Save
+Add = Add
+Cancel = Cancel
+Rename = Rename
+Deactivate = Deactivate
+Closed = Closed
+Leaf = Leaf
+Stock = Stock
+Depth = Depth
+LevelLabel = Level Name
+LevelName = Level Name
+LevelsColon = Levels
+DirectChildren = Direct children
+Child = Child
+LocationPath = Location path
+SubLocations = Sub-locations
+ManageTree = Manage tree
+RefRequired = A reference is required
+DescriptionOptional = Description (optional)
+RefPlaceholder = e.g. R01
 
-# Card / form
-Product = Product
-Warehouse = Warehouse
-Quantity = Quantity
-IsDefault = Default Location
-LocationPath = Location
-Reception = Reception
-BackToList = Back to list
+# Tree builder page
+TreeBuilderDesc = Build and manage the bin-level warehouse hierarchy for each root warehouse. Each root warehouse can have its own level names (e.g. Packout: Toolbox → Drawer → Compartment; Main Shelving: Row → Shelf → Bin). Sub-warehouses are native Dolibarr warehouses linked via parent/child — stock movements, receptions, and reports all work natively.
+RootWarehouse = Root warehouse
+SelectRootWarehouse = — select a root warehouse —
+NoRootWarehousesFound = No warehouses found. Create at least one warehouse in the Warehouses module first.
+WarehouseNotFound = Warehouse not found.
 
-# Location levels
-LocationLevels = Location Levels
-LevelPosition = Position
-LevelCode = Code
-LevelLabel = Label
-LevelDatatype = Data Type
-LevelListValues = Allowed Values
-LevelRequired = Required
-AddLevel = Add Level
-EditLevel = Edit Level
-DeleteLevel = Delete Level
-MoveLevelUp = Move Up
-MoveLevelDown = Move Down
-DatatypeFreetext = Free Text
-DatatypeInteger = Number
-DatatypeList = Predefined List
-MaxLevelsReached = Maximum of 6 hierarchy levels reached
-ConfirmDeleteLevel = Are you sure you want to deactivate this level? Existing location data will be preserved.
-LevelDeactivated = Level deactivated
-LevelAdded = Level added
-LevelUpdated = Level updated
-LevelMoved = Level position updated
-NoLevelsConfigured = No location levels configured. Go to the setup page to define your warehouse hierarchy.
+# Quick-build wizard
+QuickBuild = Quick Build
+QuickBuildDesc = Automatically generate the full sub-warehouse tree under this root in one step. Only available before any children exist.
+QuickBuildCountDesc = How many of this level to create under each parent node.
+Count = Count
+GenerateTree = Generate Tree
+QuickBuildWarning = This will create warehouse records. You can deactivate individual nodes later if needed.
+QuickBuildDone = Tree generated successfully. %s warehouse records created.
+QuickBuildFailed = Tree generation failed. No records were saved.
+QuickBuildCountsRequired = Please enter at least one count value.
+QuickBuildNeedsLevelNames = No level names defined for this warehouse yet. <a href="%s">Define level names first</a>, then come back to use Quick Build.
 
-# Level field tooltips
-LevelPositionDesc = Defines the hierarchy order from broadest to most specific (e.g. Row → Shelf → Bin). Position 1 is the outermost level.
-LevelCodeDesc = Short internal identifier, alphanumeric with no spaces (e.g. row, bay, shelf). Used internally to reference this level.
-LevelLabelDesc = Human-readable name shown on forms and lists (e.g. Row, Bay, Shelf).
-LevelDatatypeDesc = Controls what input is accepted: Free Text (anything), Number (integers only), or Predefined List (user must choose from values you define).
-LevelListValuesDesc = When type is Predefined List, define the allowed values using the editor. Each value is one row; values are stored as a comma-separated list.
-LevelRequiredDesc = When checked, a value for this level must be provided before a placement record can be saved.
+# Node actions
+AddChildToRoot = Add child to root
+AddChildNode = Add %s
+NodeRenamed = Node renamed successfully.
+ChildAdded = Child node added.
+NodeDeactivated = Node deactivated.
+ConfirmDeactivateNode = Deactivate this node? It has no stock and no children. You can re-activate it from the warehouse card.
 
-# List builder UI
-EditListValues = Edit values
-AddListValue = + Add value
-ApplyListValues = Apply
-NoListValues = No values defined
-
-# Warehouse selector
-WarehouseSelectorDesc = Select Global Default to configure levels used by all warehouses. Select a specific warehouse to create a custom hierarchy that overrides the global default for that warehouse only.
-WarehouseOverrideHint = Warehouses marked with * have their own custom level hierarchy.
-
-# Default location (product card hook)
-DefaultLocation = Default Location
-DefaultLocations = Default Locations
-DefaultLocationDesc = Default sub-warehouse location for this product when received
-AddWarehouseDefault = Add Warehouse Default
-NoDefaultLocation = No default location set
-
-# Reception hook
-LocationAtReception = Storage Location
-LocationAtReceptionDesc = Where this product will be stored in the warehouse
-
-# Status
-StatusDraft = Draft
-StatusActive = Active
-StatusMoved = Moved
-StatusCancelled = Cancelled
-
-# Admin setup
-WarelocSetup = Wareloc Setup
-HierarchyConfig = Location Hierarchy Configuration
-HierarchyConfigDesc = Define the levels of your warehouse location hierarchy. Level 1 is the broadest (e.g., Row), and each subsequent level is more specific (e.g., Bay, Shelf, Bin). Maximum 6 levels.
-GeneralSettings = General Settings
-AutoAssignOnReception = Auto-assign location on reception
-AutoAssignOnReceptionDesc = Automatically create a product location record when a reception is validated, using either the location specified on the reception or the product's default location
-DefaultStatusOnReception = Default status for auto-assigned locations
-DefaultStatusOnReceptionDesc = Status applied to location records automatically created when a reception is validated. Draft = created but not yet active; Active = immediately confirmed.
-NumberingModel = Numbering Model
-DebugMode = Debug Mode
-DebugModeDesc = When enabled, exposes a diagnostic endpoint at /custom/wareloc/ajax/debug.php for troubleshooting module configuration.
-
-# Permissions
-Permission530001a = Read product location records
-Permission530002a = Create/edit product location records
-Permission530003a = Delete product location records
-Permission530004a = Validate product location records
-Permission530005a = Configure wareloc module settings
-
-# Tab on product card
-LocationsTab = Locations
-
-# Per-warehouse level overrides
+# Level names setup page
+DepthLabelConfig = Depth Level Names
+DepthLabelConfigDesc = Define what to call each depth of the hierarchy for this warehouse. Depth 1 is the broadest level (e.g. Row or Toolbox), deeper levels get more specific. Leave unused depths empty.
 GlobalDefault = Global Default
-InitFromGlobal = Initialize from Global Defaults
-ConfirmInitFromGlobal = Copy all global hierarchy levels to this warehouse? You can then customize them individually.
-WarehouseUsesGlobal = This warehouse uses the global default hierarchy.
-LevelsInitialized = Levels copied from global defaults. You can now customize them for this warehouse.
+LevelNamesWarehouseSelectorDesc = Select Global Default to set level names used by all warehouses. Select a specific warehouse to give it its own names, which override the global default for that warehouse only.
+LevelNamesOverrideHint = Warehouses marked with * have their own custom level names.
+LevelNamesUsingGlobal = This warehouse uses the Global Default level names.
+LevelLabelInputDesc = Human-readable name for this depth (e.g. Row, Bay, Shelf, Bin, Toolbox, Drawer).
+DepthDesc = Hierarchy depth — 1 is broadest (outermost), higher numbers are more specific (innermost/bin).
+DepthLabelPlaceholder1 = e.g. Row, Zone, Aisle, Toolbox
+DepthLabelPlaceholder2 = e.g. Bay, Section, Shelf, Drawer
+DepthLabelPlaceholder3 = e.g. Shelf, Rack, Bin, Compartment
+DepthLabelPlaceholder4 = e.g. Bin, Slot, Position
+DepthLabelPlaceholder5 = e.g. Sub-bin
+DepthLabelPlaceholder6 = e.g. Slot
+DepthLabelPlaceholder7 = e.g. Position
+DepthLabelPlaceholder8 = e.g. Sub-slot
+DepthLabelPlaceholderDefault = Level name
+AddDepth = Add depth
+RemoveDepth = Remove this depth
+MaxDepthsReached = Maximum of 8 depth levels reached.
+LabelsSaved = Level names saved.
+LabelsCopiedFromGlobal = Global default level names copied to this warehouse.
+LabelsResetToGlobal = Custom level names removed — this warehouse now uses the global default.
+CopyFromGlobal = Copy from global
+ResetToGlobal = Reset to global default
+ResetToGlobalDesc = Removes this warehouse's custom level names. It will fall back to the global default.
+ConfirmCopyFromGlobal = Copy global default level names to this warehouse? Existing custom names will be replaced.
+ConfirmResetToGlobal = Remove this warehouse's custom level names and revert to the global default?
 
-# Misc
-RecordSaved = Record saved
-SetupSaved = Setup saved
-Confirm = Confirm
+# Bin picker (reception card)
+BinPickerTitle = Navigate to a specific bin within this warehouse
+SelectBin = — select a bin —
+BinPickerHint = Select a bin to use it as the exact destination for this reception line.

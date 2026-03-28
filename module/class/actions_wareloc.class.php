@@ -4,465 +4,306 @@
 /**
  * \file    class/actions_wareloc.class.php
  * \ingroup wareloc
- * \brief   Hook actions for wareloc module
- *
- * Hooks into: elementproperties, productcard, receptioncard, commonobject
+ * \brief   Wareloc v2 hooks — warehouse card sub-locations tab, reception bin picker
  */
 
 /**
  * Class ActionsWareloc
+ *
+ * Hook contexts: entrepotcard, receptioncard
  */
 class ActionsWareloc
 {
-	/**
-	 * @var DoliDB Database handler
-	 */
+	/** @var DoliDB */
 	public $db;
 
-	/**
-	 * @var string Error message
-	 */
+	/** @var string */
 	public $error = '';
 
-	/**
-	 * @var array Results array for hook returns
-	 */
-	public $results = array();
+	/** @var string[] */
+	public $errors = array();
 
-	/**
-	 * @var string HTML output for hook injection
-	 */
-	public $resprints = '';
-
-	/**
-	 * Constructor
-	 *
-	 * @param DoliDB $db Database handler
-	 */
 	public function __construct($db)
 	{
 		$this->db = $db;
 	}
 
-	/**
-	 * Register element properties for ProductLocation
-	 *
-	 * @param  array  $parameters  Hook parameters
-	 * @param  object $object      Current object
-	 * @param  string $action      Action code
-	 * @param  object $hookmanager Hook manager
-	 * @return int                 0=continue
-	 */
-	public function getElementProperties($parameters, &$object, &$action, $hookmanager)
-	{
-		$elementType = isset($parameters['elementType']) ? $parameters['elementType'] : '';
+	// =========================================================================
+	// entrepotcard — adds a "Sub-locations" panel to the warehouse card
+	// =========================================================================
 
-		if ($elementType === 'productlocation' || $elementType === 'wareloc_productlocation' || $elementType === 'wareloc') {
-			$this->results = array(
-				'module'        => 'wareloc',
-				'element'       => 'productlocation',
-				'table_element' => 'wareloc_product_location',
-				'subelement'    => 'productlocation',
-				'classpath'     => 'wareloc/class',
-				'classfile'     => 'productlocation',
-				'classname'     => 'ProductLocation',
-			);
+	/**
+	 * Hook: formObjectOptions — inject sub-location tree panel below the warehouse card
+	 *
+	 * Called on the warehouse card (product/stock/card.php) for both view and edit modes.
+	 *
+	 * @param  array  $parameters  Hook parameters (currentcontext, object, action, …)
+	 * @param  object &$object     The Entrepot object
+	 * @param  string &$action     Current action
+	 * @return int                 0 = continue hooks, 1 = stop hooks (no error), -1 = error
+	 */
+	public function formObjectOptions($parameters, &$object, &$action)
+	{
+		global $langs, $conf, $user;
+
+		if (!in_array('entrepotcard', explode(':', $parameters['currentcontext']))) {
+			return 0;
+		}
+		if (empty($object->id) || $object->id <= 0) {
+			return 0;
+		}
+
+		dol_include_once('/wareloc/lib/wareloc.lib.php');
+		$langs->load('wareloc@wareloc');
+
+		// Only show the sub-location panel for root warehouses (no parent)
+		// or warehouses that are themselves a parent (have children)
+		$children = wareloc_get_children($object->id, $this->db);
+		if (empty($children) && !empty($object->fk_parent)) {
+			// This is a leaf node — show its full path label instead
+			$path = wareloc_get_full_path_label($object->id, $this->db);
+			if ($path) {
+				print '<div class="clearboth"></div>';
+				print '<div class="marginbottomonly">';
+				print '<strong>'.$langs->trans('LocationPath').'</strong>: '.dol_escape_htmltag($path);
+				print '</div>';
+			}
+			return 0;
+		}
+
+		// Show sub-location tree summary
+		$root_id = empty($object->fk_parent) ? $object->id : $this->_get_root_id($object->id);
+		$depth_labels = wareloc_get_depth_labels($this->db, $root_id);
+
+		if (empty($depth_labels) && empty($children)) {
+			return 0;
+		}
+
+		print '<div class="clearboth"></div>';
+		print '<div class="underbanner">';
+		print '<strong>'.img_picto('', 'stock', 'class="pictofixedwidth"').$langs->trans('SubLocations').'</strong>';
+
+		if (!empty($depth_labels)) {
+			print ' <span class="opacitymedium small">';
+			$first_child_label = isset($depth_labels[empty($object->fk_parent) ? 1 : 2]) ? $depth_labels[empty($object->fk_parent) ? 1 : 2] : '';
+			if ($first_child_label) {
+				print $langs->trans('DirectChildren').': '.dol_escape_htmltag($first_child_label).' '.$langs->trans('Level');
+			}
+			print '</span>';
+		}
+
+		$tree_url = dol_buildpath('/wareloc/warehouse_tree.php?fk_root='.$root_id, 1);
+		print ' <a class="button smallpaddingimp marginleftonly" href="'.$tree_url.'">';
+		print img_picto('', 'list', 'class="pictofixedwidth"').$langs->trans('ManageTree');
+		print '</a>';
+		print '</div>';
+
+		if (!empty($children)) {
+			print '<table class="noborder" style="width:auto; margin-top:4px">';
+			print '<tr class="liste_titre">';
+			print '<td>'.dol_escape_htmltag($depth_labels[1] ?? $langs->trans('Child')).'</td>';
+			print '<td class="right">'.$langs->trans('Stock').'</td>';
+			print '<td></td>';
+			print '</tr>';
+			foreach ($children as $child) {
+				$child_url = dol_buildpath('/product/stock/card.php?id='.$child->rowid, 1);
+				print '<tr class="oddeven">';
+				print '<td><a href="'.$child_url.'">'.dol_escape_htmltag($child->ref).'</a>';
+				if ($child->description) {
+					print ' <span class="opacitymedium small">'.dol_escape_htmltag($child->description).'</span>';
+				}
+				print '</td>';
+				print '<td class="right">'.price2num($child->stock, 0).'</td>';
+				$grandchildren = wareloc_get_children($child->rowid, $this->db);
+				print '<td class="opacitymedium small">'.(!empty($grandchildren) ? count($grandchildren).' sub' : $langs->trans('Leaf')).'</td>';
+				print '</tr>';
+			}
+			print '</table>';
 		}
 
 		return 0;
 	}
 
+	// =========================================================================
+	// receptioncard — bin picker: guide user to a leaf when destination has children
+	// =========================================================================
+
 	/**
-	 * Inject "Link to ProductLocation" into the link dropdown
+	 * Hook: formAddObjectLine — inject bin-picker hint on reception lines
+	 *
+	 * When the destination warehouse on a reception line has children, we render
+	 * a small "navigate to bin" tree widget below the native warehouse dropdown.
+	 * The selected leaf ID replaces the native warehouse selection via JS.
 	 *
 	 * @param  array  $parameters  Hook parameters
-	 * @param  object $object      Current object
-	 * @param  string $action      Action code
-	 * @param  object $hookmanager Hook manager
-	 * @return int                 0=continue
+	 * @param  object &$object     The Reception object
+	 * @param  string &$action     Current action
+	 * @return int
 	 */
-	public function showLinkToObjectBlock($parameters, &$object, &$action, $hookmanager)
+	public function formAddObjectLine($parameters, &$object, &$action)
 	{
-		global $db, $user;
+		global $langs, $conf;
 
-		if (!isModEnabled('wareloc')) {
+		if (!in_array('receptioncard', explode(':', $parameters['currentcontext']))) {
 			return 0;
 		}
 
-		if (!$user->hasRight('wareloc', 'productlocation', 'read')) {
+		dol_include_once('/wareloc/lib/wareloc.lib.php');
+		$langs->load('wareloc@wareloc');
+
+		// Render a compact JS-driven leaf picker after the warehouse dropdown.
+		// We output a hidden <div> containing the tree JSON for each root warehouse;
+		// JS monitors the warehouse <select> and shows the appropriate sub-tree.
+		$root_warehouses = wareloc_get_root_warehouses($this->db);
+		if (empty($root_warehouses)) {
 			return 0;
 		}
 
-		$this->results = array();
+		$trees = array();
+		foreach ($root_warehouses as $wh) {
+			$children = wareloc_get_children($wh->rowid, $this->db);
+			if (!empty($children)) {
+				$trees[$wh->rowid] = $this->_build_select_tree($wh->rowid, $this->db);
+			}
+		}
 
-		$this->results['productlocation'] = array(
-			'enabled' => 1,
-			'perms'   => 1,
-			'label'   => 'LinkToProductLocation',
-			'sql'     => "SELECT t.rowid, t.ref"
-				." FROM ".MAIN_DB_PREFIX."wareloc_product_location as t"
-				." WHERE t.entity IN (".getEntity('productlocation').")"
-				." AND t.status IN (0, 1)"
-				." ORDER BY t.ref DESC",
-		);
+		if (empty($trees)) {
+			return 0;
+		}
+
+		// Encode tree data for JS
+		$trees_json = json_encode($trees, JSON_HEX_TAG | JSON_HEX_QUOT);
+
+		print '<script>
+(function() {
+	var warelocTrees = '.$trees_json.';
+
+	function warelocGetLeafOptions(node, depth, depthLabels, prefix) {
+		var opts = [];
+		if (!node.children || node.children.length === 0) {
+			opts.push({ id: node.rowid, label: prefix + node.ref });
+		} else {
+			(node.children || []).forEach(function(child) {
+				var dlabel = depthLabels[depth] || ("L" + depth);
+				opts = opts.concat(warelocGetLeafOptions(child, depth + 1, depthLabels, prefix + node.ref + " > "));
+			});
+		}
+		return opts;
+	}
+
+	function warelocAttachBinPicker(selectEl) {
+		if (selectEl.dataset.warelocAttached) return;
+		selectEl.dataset.warelocAttached = "1";
+
+		var wrapper = document.createElement("div");
+		wrapper.id = "wareloc-bin-picker";
+		wrapper.style.marginTop = "4px";
+		wrapper.style.display = "none";
+		selectEl.parentNode.insertBefore(wrapper, selectEl.nextSibling);
+
+		selectEl.addEventListener("change", function() {
+			var val = parseInt(this.value);
+			wrapper.innerHTML = "";
+			wrapper.style.display = "none";
+			if (warelocTrees[val]) {
+				var node = warelocTrees[val];
+				var sel = document.createElement("select");
+				sel.className = "flat minwidth250";
+				sel.title = "'.dol_escape_js($langs->trans('BinPickerTitle')).'";
+				var placeholder = document.createElement("option");
+				placeholder.value = "";
+				placeholder.textContent = "'.dol_escape_js($langs->trans('SelectBin')).'";
+				sel.appendChild(placeholder);
+				var leaves = warelocGetLeafOptions(node, 1, {}, "");
+				leaves.forEach(function(leaf) {
+					var opt = document.createElement("option");
+					opt.value = leaf.id;
+					opt.textContent = leaf.label;
+					sel.appendChild(opt);
+				});
+				sel.addEventListener("change", function() {
+					if (this.value) {
+						selectEl.value = this.value;
+					}
+				});
+				var label = document.createElement("span");
+				label.className = "opacitymedium small";
+				label.style.marginLeft = "6px";
+				label.textContent = "'.dol_escape_js($langs->trans('BinPickerHint')).'";
+				wrapper.appendChild(sel);
+				wrapper.appendChild(label);
+				wrapper.style.display = "block";
+			}
+		});
+	}
+
+	// Attach to warehouse selects when DOM ready
+	function warelocInitBinPickers() {
+		document.querySelectorAll("select[name*=entrepot], select[name*=warehouse], select#idwarehouse").forEach(function(el) {
+			warelocAttachBinPicker(el);
+		});
+	}
+
+	if (document.readyState === "loading") {
+		document.addEventListener("DOMContentLoaded", warelocInitBinPickers);
+	} else {
+		warelocInitBinPickers();
+	}
+})();
+</script>';
 
 		return 0;
 	}
 
+	// =========================================================================
+	// Internal helpers
+	// =========================================================================
+
 	/**
-	 * Inject location fields onto product card and reception card
+	 * Walk up fk_parent chain to find the root warehouse ID.
 	 *
-	 * @param  array  $parameters  Hook parameters
-	 * @param  object $object      Current object
-	 * @param  string $action      Action code
-	 * @param  object $hookmanager Hook manager
-	 * @return int                 0=continue
+	 * @param  int $fk_entrepot
+	 * @return int
 	 */
-	public function formObjectOptions($parameters, &$object, &$action, $hookmanager)
+	private function _get_root_id($fk_entrepot)
 	{
-		global $langs, $db, $user, $conf;
-
-		if (!isModEnabled('wareloc')) {
-			return 0;
+		$cur  = (int) $fk_entrepot;
+		$seen = array();
+		while ($cur > 0 && !isset($seen[$cur])) {
+			$seen[$cur] = true;
+			$sql = "SELECT fk_parent FROM ".MAIN_DB_PREFIX."entrepot WHERE rowid = ".$cur;
+			$res = $this->db->query($sql);
+			if (!$res) break;
+			$obj = $this->db->fetch_object($res);
+			$this->db->free($res);
+			if (!$obj || !$obj->fk_parent) break;
+			$cur = (int) $obj->fk_parent;
 		}
-
-		// ---- PRODUCT CARD HOOK ----
-		if (isset($object->element) && $object->element === 'product') {
-			if (!$user->hasRight('wareloc', 'productlocation', 'read')) {
-				return 0;
-			}
-
-			$langs->load('wareloc@wareloc');
-			dol_include_once('/wareloc/lib/wareloc.lib.php');
-
-			$levels = wareloc_get_active_levels();
-			if (empty($levels)) {
-				return 0;
-			}
-
-			// Only show on existing products (not during create)
-			if (empty($object->id)) {
-				return 0;
-			}
-
-			// Fetch existing defaults for this product
-			$defaults = array();
-			$sql = "SELECT rowid, fk_entrepot, level_1, level_2, level_3, level_4, level_5, level_6";
-			$sql .= " FROM ".MAIN_DB_PREFIX."wareloc_product_default";
-			$sql .= " WHERE fk_product = ".((int) $object->id);
-			$sql .= " AND entity IN (".getEntity('wareloc_product_default').")";
-			$sql .= " ORDER BY fk_entrepot";
-
-			$resql = $db->query($sql);
-			if ($resql) {
-				while ($obj = $db->fetch_object($resql)) {
-					$row = array('fk_entrepot' => $obj->fk_entrepot);
-					for ($i = 1; $i <= 6; $i++) {
-						$row['level_'.$i] = $obj->{'level_'.$i};
-					}
-					$defaults[] = $row;
-				}
-				$db->free($resql);
-			}
-
-			$html = '';
-
-			if ($action === 'edit') {
-				// EDIT MODE: render editable location defaults
-				require_once DOL_DOCUMENT_ROOT.'/product/stock/class/entrepot.class.php';
-				$entrepot = new Entrepot($db);
-				$warehouses = $entrepot->list_array();
-
-				$html .= '<tr class="oddeven"><td class="titlefieldcreate" colspan="2">';
-				$html .= '<strong>'.$langs->trans('DefaultLocations').'</strong>';
-				$html .= ' <span class="opacitymedium small">('.$langs->trans('DefaultLocationDesc').')</span>';
-				$html .= '</td></tr>';
-
-				// Render existing defaults
-				$idx = 0;
-				if (!empty($defaults)) {
-					foreach ($defaults as $def) {
-						$html .= $this->_renderProductDefaultRow($idx, $warehouses, $levels, $def);
-						$idx++;
-					}
-				}
-
-				// Empty row for adding new default
-				$html .= $this->_renderProductDefaultRow($idx, $warehouses, $levels, array());
-				$html .= '<tr class="oddeven"><td colspan="2">';
-				$html .= '<a href="#" onclick="warelocAddRow(); return false;" class="butAction small">'.$langs->trans('AddWarehouseDefault').'</a>';
-				$html .= '</td></tr>';
-
-				// JavaScript for adding rows
-				$html .= '<script>';
-				$html .= 'var warelocRowIdx = '.($idx + 1).';';
-				$html .= 'function warelocAddRow() {';
-				$html .= '  var tmpl = document.getElementById("wareloc_row_template");';
-				$html .= '  if (tmpl) { var clone = tmpl.cloneNode(true); clone.id = "wareloc_row_" + warelocRowIdx;';
-				$html .= '  clone.style.display = ""; clone.innerHTML = clone.innerHTML.replace(/_IDX_/g, warelocRowIdx);';
-				$html .= '  tmpl.parentNode.insertBefore(clone, tmpl); warelocRowIdx++; }';
-				$html .= '}';
-				$html .= '</script>';
-			} else {
-				// VIEW MODE: show defaults as compact read-only list
-				if (!empty($defaults)) {
-					require_once DOL_DOCUMENT_ROOT.'/product/stock/class/entrepot.class.php';
-
-					$html .= '<tr class="oddeven"><td class="titlefield">'.$langs->trans('DefaultLocations').'</td><td>';
-					foreach ($defaults as $def) {
-						$wh = new Entrepot($db);
-						if ($wh->fetch($def['fk_entrepot']) > 0) {
-							$wh_label = $wh->label;
-						} else {
-							$wh_label = '#'.$def['fk_entrepot'];
-						}
-						$wh_levels = wareloc_get_active_levels(null, $def['fk_entrepot']);
-						$loc_label = wareloc_build_location_label($def, $wh_levels);
-						$html .= '<div class="margintoponly">';
-						$html .= '<strong>'.dol_escape_htmltag($wh_label).':</strong> ';
-						$html .= ($loc_label ? $loc_label : '<span class="opacitymedium">'.$langs->trans('NoDefaultLocation').'</span>');
-						$html .= '</div>';
-					}
-					$html .= '</td></tr>';
-				}
-			}
-
-			$this->resprints = $html;
-			return 0;
-		}
-
-		// ---- RECEPTION CARD HOOK ----
-		if (isset($object->element) && $object->element === 'reception') {
-			if (!$user->hasRight('wareloc', 'productlocation', 'read')) {
-				return 0;
-			}
-
-			$langs->load('wareloc@wareloc');
-			dol_include_once('/wareloc/lib/wareloc.lib.php');
-
-			// Get the warehouse from the reception if set
-			$warehouse_id = 0;
-			if (!empty($object->fk_entrepot) && $object->fk_entrepot > 0) {
-				$warehouse_id = $object->fk_entrepot;
-			}
-
-			$levels = wareloc_get_active_levels(null, $warehouse_id);
-			if (empty($levels)) {
-				return 0;
-			}
-
-			// Inject location fields for reception
-			$html = '';
-			$html .= '<tr class="oddeven"><td class="titlefieldcreate" colspan="2">';
-			$html .= '<strong>'.$langs->trans('LocationAtReception').'</strong>';
-			$html .= ' <span class="opacitymedium small">('.$langs->trans('LocationAtReceptionDesc').')</span>';
-			$html .= '</td></tr>';
-
-			// Try to pre-fill from session if returning after a save
-			$session_key = 'wareloc_reception_'.$object->id;
-			$session_vals = isset($_SESSION[$session_key]) ? $_SESSION[$session_key] : array();
-
-			// Pre-fill from product defaults if we have a warehouse and product
-			$prefill = array();
-			if ($warehouse_id > 0 && !empty($object->lines)) {
-				// Use the first product's default as a starting point
-				foreach ($object->lines as $line) {
-					if (!empty($line->fk_product) && $line->fk_product > 0) {
-						dol_include_once('/wareloc/class/productlocation.class.php');
-						$prefill = ProductLocation::fetchDefaultForProduct($line->fk_product, $warehouse_id);
-						break;
-					}
-				}
-			}
-
-			// Merge session values over defaults
-			$values = array_merge($prefill, $session_vals);
-
-			$html .= wareloc_render_level_fields($levels, $values, 'wareloc_reception', ($action === 'create' || $action === 'edit') ? 'edit' : 'view');
-
-			$this->resprints = $html;
-			return 0;
-		}
-
-		return 0;
+		return $cur;
 	}
 
 	/**
-	 * Handle form submissions from hooked pages
+	 * Build a lightweight nested array for the bin picker JS (id, ref, children[]).
 	 *
-	 * @param  array  $parameters  Hook parameters
-	 * @param  object $object      Current object
-	 * @param  string $action      Action code
-	 * @param  object $hookmanager Hook manager
-	 * @return int                 0=continue
+	 * @param  int     $fk_root
+	 * @param  DoliDB  $db
+	 * @return array
 	 */
-	public function doActions($parameters, &$object, &$action, $hookmanager)
+	private function _build_select_tree($fk_root, $db)
 	{
-		global $conf, $user, $db;
+		dol_include_once('/wareloc/lib/wareloc.lib.php');
 
-		if (!isModEnabled('wareloc')) {
-			return 0;
+		$sql = "SELECT rowid, ref FROM ".MAIN_DB_PREFIX."entrepot WHERE rowid = ".((int) $fk_root);
+		$res = $db->query($sql);
+		if (!$res) return array();
+		$obj = $db->fetch_object($res);
+		$db->free($res);
+		if (!$obj) return array();
+
+		$node = array('rowid' => (int) $obj->rowid, 'ref' => $obj->ref, 'children' => array());
+		foreach (wareloc_get_children($fk_root, $db) as $child) {
+			$node['children'][] = $this->_build_select_tree($child->rowid, $db);
 		}
-
-		// ---- PRODUCT CARD: Save default locations ----
-		if (isset($object->element) && $object->element === 'product' && $action === 'update') {
-			if (!$user->hasRight('wareloc', 'productlocation', 'write')) {
-				return 0;
-			}
-
-			$product_id = $object->id;
-			if (empty($product_id)) {
-				return 0;
-			}
-
-			// Delete existing defaults for this product in this entity
-			$sql = "DELETE FROM ".MAIN_DB_PREFIX."wareloc_product_default";
-			$sql .= " WHERE fk_product = ".((int) $product_id);
-			$sql .= " AND entity = ".((int) $conf->entity);
-			$db->query($sql);
-
-			// Insert new defaults from POST arrays
-			$entrepots = GETPOST('wareloc_entrepot', 'array');
-			if (!empty($entrepots) && is_array($entrepots)) {
-				$now = dol_now();
-				foreach ($entrepots as $idx => $entrepot_id) {
-					$entrepot_id = (int) $entrepot_id;
-					if ($entrepot_id <= 0) {
-						continue;
-					}
-
-					// Check if any level value is populated
-					$has_value = false;
-					$level_vals = array();
-					for ($i = 1; $i <= 6; $i++) {
-						$arr = GETPOST('wareloc_'.$idx.'_level_'.$i, 'array');
-						$val = isset($arr[$idx]) ? trim($arr[$idx]) : '';
-						// Also try direct naming
-						if ($val === '') {
-							$val = trim(GETPOST('wareloc_'.$idx.'_level_'.$i, 'alpha'));
-						}
-						$level_vals[$i] = $val;
-						if ($val !== '') {
-							$has_value = true;
-						}
-					}
-
-					if (!$has_value) {
-						continue;
-					}
-
-					$sql = "INSERT INTO ".MAIN_DB_PREFIX."wareloc_product_default (";
-					$sql .= "entity, fk_product, fk_entrepot";
-					$sql .= ", level_1, level_2, level_3, level_4, level_5, level_6";
-					$sql .= ", date_creation, fk_user_creat";
-					$sql .= ") VALUES (";
-					$sql .= ((int) $conf->entity);
-					$sql .= ", ".((int) $product_id);
-					$sql .= ", ".((int) $entrepot_id);
-					for ($i = 1; $i <= 6; $i++) {
-						$sql .= ", ".($level_vals[$i] !== '' ? "'".$db->escape($level_vals[$i])."'" : "NULL");
-					}
-					$sql .= ", '".$db->idate($now)."'";
-					$sql .= ", ".((int) $user->id);
-					$sql .= ")";
-					$db->query($sql);
-				}
-			}
-
-			return 0;
-		}
-
-		// ---- RECEPTION CARD: Store location data for trigger ----
-		if (isset($object->element) && $object->element === 'reception') {
-			if (!$user->hasRight('wareloc', 'productlocation', 'write')) {
-				return 0;
-			}
-
-			// Store level values in session for the trigger to pick up
-			$levels_data = array();
-			for ($i = 1; $i <= 6; $i++) {
-				$val = GETPOST('wareloc_reception_level_'.$i, 'alpha');
-				if ($val !== '') {
-					$levels_data['level_'.$i] = $val;
-				}
-			}
-
-			if (!empty($levels_data) && !empty($object->id)) {
-				$_SESSION['wareloc_reception_'.$object->id] = $levels_data;
-			}
-
-			return 0;
-		}
-
-		return 0;
-	}
-
-	/**
-	 * Render a single product default location row for the edit form
-	 *
-	 * @param  int    $idx         Row index
-	 * @param  array  $warehouses  Array of warehouse id => label
-	 * @param  array  $levels      Active level configs
-	 * @param  array  $values      Current values (fk_entrepot, level_1..level_6)
-	 * @return string              HTML
-	 */
-	private function _renderProductDefaultRow($idx, $warehouses, $levels, $values)
-	{
-		$is_template = empty($values);
-		$html = '';
-
-		$style = $is_template ? ' id="wareloc_row_template" style="display:none"' : ' id="wareloc_row_'.$idx.'"';
-		$name_idx = $is_template ? '_IDX_' : $idx;
-
-		// Warehouse selector
-		$html .= '<tr class="oddeven"'.$style.'>';
-		$html .= '<td class="titlefieldcreate fieldrequired">';
-		$html .= '<select name="wareloc_entrepot['.$name_idx.']" class="flat minwidth200">';
-		$html .= '<option value="">--- Warehouse ---</option>';
-		if (is_array($warehouses)) {
-			foreach ($warehouses as $wid => $wlabel) {
-				$sel = (isset($values['fk_entrepot']) && $values['fk_entrepot'] == $wid) ? ' selected' : '';
-				$html .= '<option value="'.$wid.'"'.$sel.'>'.dol_escape_htmltag($wlabel).'</option>';
-			}
-		}
-		$html .= '</select>';
-		$html .= '</td><td>';
-
-		// Level fields inline
-		foreach ($levels as $level) {
-			$key = 'level_'.$level->position;
-			$name = 'wareloc_'.$name_idx.'_'.$key;
-			$val = isset($values[$key]) ? $values[$key] : '';
-			$req = $level->required ? ' *' : '';
-
-			$html .= '<span class="nowraponall marginrightonly">';
-			$html .= '<label class="small">'.dol_escape_htmltag($level->label).$req.': </label>';
-
-			switch ($level->datatype) {
-				case 'list':
-					$items = array_map('trim', explode(',', $level->list_values));
-					$html .= '<select name="'.$name.'" class="flat maxwidth100">';
-					$html .= '<option value="">&nbsp;</option>';
-					foreach ($items as $item) {
-						if ($item === '') continue;
-						$sel = ($val === $item) ? ' selected' : '';
-						$html .= '<option value="'.dol_escape_htmltag($item).'"'.$sel.'>'.dol_escape_htmltag($item).'</option>';
-					}
-					$html .= '</select>';
-					break;
-				case 'integer':
-					$html .= '<input type="number" name="'.$name.'" class="flat maxwidth75" value="'.dol_escape_htmltag($val).'">';
-					break;
-				default:
-					$html .= '<input type="text" name="'.$name.'" class="flat maxwidth100" value="'.dol_escape_htmltag($val).'">';
-					break;
-			}
-
-			$html .= '</span>';
-		}
-
-		$html .= '</td></tr>';
-
-		return $html;
+		return $node;
 	}
 }
