@@ -23,7 +23,7 @@ class InterfaceWarelocTrigger extends DolibarrTriggers
 		$this->name        = preg_replace('/^Interface/i', '', get_class($this));
 		$this->family      = 'wareloc';
 		$this->description = 'Wareloc v2 event trigger';
-		$this->version     = '2.0.1';
+		$this->version     = '2.0.2';
 		$this->picto       = 'stock';
 	}
 

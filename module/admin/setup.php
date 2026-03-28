@@ -274,7 +274,7 @@ function warelocAddDepthRow() {
 		"<td class=\"center opacitymedium\">" + d + "<input type=\"hidden\" name=\"depth[]\" value=\"" + d + "\"></td>" +
 		"<td><input type=\"text\" name=\"label[]\" class=\"flat minwidth200\" placeholder=\"" + ph + "\" autocomplete=\"off\"></td>" +
 		"<td class=\"center\"><a href=\"#\" onclick=\"warelocRemoveDepthRow(" + d + "); return false;\" title=\"'.$js_remove_title.'\">\u00d7</a></td>";
-	addBtn.parentNode.before(row);
+	document.getElementById("wareloc-labels-table").appendChild(row);
 	row.querySelector("input[type=text]").focus();
 	document.getElementById("wareloc-add-depth").style.display = (warelocDepthCount >= warelocMaxDepths) ? "none" : "";
 }
