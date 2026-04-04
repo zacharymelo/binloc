@@ -23,6 +23,11 @@ class ActionsWareloc
 	/** @var string[] */
 	public $errors = array();
 
+	/**
+	 * Constructor
+	 *
+	 * @param DoliDB $db Database handler
+	 */
 	public function __construct($db)
 	{
 		$this->db = $db;
@@ -37,9 +42,9 @@ class ActionsWareloc
 	 *
 	 * Called on the warehouse card (product/stock/card.php) for both view and edit modes.
 	 *
-	 * @param  array  $parameters  Hook parameters (currentcontext, object, action, …)
-	 * @param  object &$object     The Entrepot object
-	 * @param  string &$action     Current action
+	 * @param  array   $parameters  Hook parameters (currentcontext, object, action, …)
+	 * @param  object  $object      The Entrepot object
+	 * @param  string  $action      Current action
 	 * @return int                 0 = continue hooks, 1 = stop hooks (no error), -1 = error
 	 */
 	public function formObjectOptions($parameters, &$object, &$action)
@@ -135,9 +140,9 @@ class ActionsWareloc
 	 * a small "navigate to bin" tree widget below the native warehouse dropdown.
 	 * The selected leaf ID replaces the native warehouse selection via JS.
 	 *
-	 * @param  array  $parameters  Hook parameters
-	 * @param  object &$object     The Reception object
-	 * @param  string &$action     Current action
+	 * @param  array   $parameters  Hook parameters
+	 * @param  object  $object      The Reception object
+	 * @param  string  $action      Current action
 	 * @return int
 	 */
 	public function formAddObjectLine($parameters, &$object, &$action)
@@ -262,8 +267,8 @@ class ActionsWareloc
 	/**
 	 * Walk up fk_parent chain to find the root warehouse ID.
 	 *
-	 * @param  int $fk_entrepot
-	 * @return int
+	 * @param  int $fk_entrepot  Warehouse ID to find root for
+	 * @return int              Root warehouse ID
 	 */
 	private function _get_root_id($fk_entrepot)
 	{
@@ -285,9 +290,9 @@ class ActionsWareloc
 	/**
 	 * Build a lightweight nested array for the bin picker JS (id, ref, children[]).
 	 *
-	 * @param  int     $fk_root
-	 * @param  DoliDB  $db
-	 * @return array
+	 * @param  int     $fk_root  Root warehouse ID
+	 * @param  DoliDB  $db       Database handler
+	 * @return array             Nested tree array
 	 */
 	private function _build_select_tree($fk_root, $db)
 	{

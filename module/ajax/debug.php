@@ -20,9 +20,9 @@
  */
 
 $res = 0;
-if (!$res && file_exists("../../main.inc.php"))     { $res = @include "../../main.inc.php"; }
-if (!$res && file_exists("../../../main.inc.php"))   { $res = @include "../../../main.inc.php"; }
-if (!$res && file_exists("../../../../main.inc.php")){ $res = @include "../../../../main.inc.php"; }
+if (!$res && file_exists("../../main.inc.php")) { $res = @include "../../main.inc.php"; }
+if (!$res && file_exists("../../../main.inc.php")) { $res = @include "../../../main.inc.php"; }
+if (!$res && file_exists("../../../../main.inc.php")) { $res = @include "../../../../main.inc.php"; }
 if (!$res) { http_response_code(500); exit; }
 
 if (!$user->admin) { http_response_code(403); print 'Admin only'; exit; }
@@ -197,10 +197,7 @@ if ($mode === 'object' || $run_all) {
 						$where_parts[] = "(fk_target = $oid AND targettype = '".$db->escape($st)."')";
 					}
 
-					$sql = "SELECT DISTINCT rowid, fk_source, sourcetype, fk_target, targettype"
-						." FROM ".MAIN_DB_PREFIX."element_element"
-						." WHERE ".implode(" OR ", $where_parts)
-						." ORDER BY rowid";
+					$sql = "SELECT DISTINCT rowid, fk_source, sourcetype, fk_target, targettype FROM ".MAIN_DB_PREFIX."element_element WHERE ".implode(" OR ", $where_parts)." ORDER BY rowid";
 					$resql = $db->query($sql);
 					if ($resql) {
 						$cnt = 0;
@@ -230,10 +227,7 @@ if ($mode === 'links' || $run_all) {
 		$type_patterns[] = "targettype LIKE '%".$db->escape($bare)."%'";
 	}
 
-	$sql = "SELECT rowid, fk_source, sourcetype, fk_target, targettype"
-		." FROM ".MAIN_DB_PREFIX."element_element"
-		." WHERE ".implode(" OR ", $type_patterns)
-		." ORDER BY rowid DESC LIMIT 50";
+	$sql = "SELECT rowid, fk_source, sourcetype, fk_target, targettype FROM ".MAIN_DB_PREFIX."element_element WHERE ".implode(" OR ", $type_patterns)." ORDER BY rowid DESC LIMIT 50";
 	$resql = $db->query($sql);
 	if ($resql) {
 		$cnt = 0;
@@ -253,10 +247,7 @@ if ($mode === 'links' || $run_all) {
 if ($mode === 'settings' || $run_all) {
 	print "--- WARELOC SETTINGS ---\n";
 
-	$sql = "SELECT name, value, note FROM ".MAIN_DB_PREFIX."const"
-		." WHERE name LIKE 'WARELOC%'"
-		." AND entity IN (0, ".((int) $conf->entity).")"
-		." ORDER BY name";
+	$sql = "SELECT name, value, note FROM ".MAIN_DB_PREFIX."const WHERE name LIKE 'WARELOC%' AND entity IN (0, ".((int) $conf->entity).") ORDER BY name";
 	$resql = $db->query($sql);
 	if ($resql) {
 		while ($row = $db->fetch_object($resql)) {
@@ -407,9 +398,7 @@ if ($mode === 'triggers' || $run_all) {
 if ($mode === 'hooks' || $run_all) {
 	print "--- HOOK REGISTRATION ---\n";
 
-	$sql_hooks = "SELECT name, value FROM ".MAIN_DB_PREFIX."const"
-		." WHERE name = 'MAIN_MODULE_WARELOC_HOOKS'"
-		." AND entity IN (0, ".((int) $conf->entity).")";
+	$sql_hooks = "SELECT name, value FROM ".MAIN_DB_PREFIX."const WHERE name = 'MAIN_MODULE_WARELOC_HOOKS' AND entity IN (0, ".((int) $conf->entity).")";
 	$resql = $db->query($sql_hooks);
 	if ($resql && ($row = $db->fetch_object($resql))) {
 		print "  MAIN_MODULE_WARELOC_HOOKS = $row->value\n";

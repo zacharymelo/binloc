@@ -8,7 +8,7 @@
  */
 
 $res = 0;
-if (!$res && file_exists("../main.inc.php"))    { $res = @include "../main.inc.php"; }
+if (!$res && file_exists("../main.inc.php")) { $res = @include "../main.inc.php"; }
 if (!$res && file_exists("../../main.inc.php")) { $res = @include "../../main.inc.php"; }
 if (!$res) { die("Include of main fails"); }
 
@@ -44,7 +44,7 @@ if ($action === 'quickbuild' && $fk_root > 0) {
 			} else {
 				$db->begin();
 				$created = 0;
-				$error   = _wareloc_quickbuild_level($db, $conf, $user, $fk_root, $root_obj->label, $depth_labels, $counts, 1, $created);
+				$error   = wareloc_quickbuild_level($db, $conf, $user, $fk_root, $root_obj->label, $depth_labels, $counts, 1, $created);
 				if ($error) {
 					$db->rollback();
 					setEventMessages($langs->trans('QuickBuildFailed'), null, 'errors');
@@ -74,7 +74,7 @@ if ($action === 'bulkaddchildren' && $fk_node > 0 && $fk_root > 0) {
 		$start    = count($existing) + 1;
 
 		// Determine child depth label
-		$node_depth   = _wareloc_get_node_depth($fk_node, $fk_root, $db);
+		$node_depth   = wareloc_get_node_depth($fk_node, $fk_root, $db);
 		$child_depth  = $node_depth + 1;
 		$depth_labels = wareloc_get_depth_labels($db, $fk_root);
 		$child_label  = isset($depth_labels[$child_depth]) ? $depth_labels[$child_depth] : ('L'.$child_depth);
@@ -270,7 +270,7 @@ if ($fk_root > 0) {
 
 		// ---- Recursive tree ----
 		print '<div class="wareloc-tree" id="wareloc-tree-root">';
-		_wareloc_render_tree_node($tree, $depth_labels, $fk_root, $langs, 0);
+		wareloc_render_tree_node($tree, $depth_labels, $fk_root, $langs, 0);
 		print '</div>';
 
 		// ---- Shared bulk-add inline form ----
@@ -379,8 +379,15 @@ $db->close();
 
 /**
  * Render a single tree node and its children recursively.
+ *
+ * @param  array     $node          Tree node array with keys rowid, ref, children, etc.
+ * @param  array     $depth_labels  Depth-indexed array of level label strings
+ * @param  int       $fk_root       Root warehouse ID
+ * @param  Translate $langs         Language object
+ * @param  int       $display_depth Current display depth (0 = root)
+ * @return void
  */
-function _wareloc_render_tree_node($node, $depth_labels, $fk_root, $langs, $display_depth)
+function wareloc_render_tree_node($node, $depth_labels, $fk_root, $langs, $display_depth)
 {
 	if ($display_depth > 0) {
 		$depth_label  = isset($depth_labels[$display_depth]) ? $depth_labels[$display_depth] : ('L'.$display_depth);
@@ -435,7 +442,7 @@ function _wareloc_render_tree_node($node, $depth_labels, $fk_root, $langs, $disp
 	if (!empty($node['children'])) {
 		if ($display_depth > 0) print '<div class="wareloc-tree-children">';
 		foreach ($node['children'] as $child) {
-			_wareloc_render_tree_node($child, $depth_labels, $fk_root, $langs, $display_depth + 1);
+			wareloc_render_tree_node($child, $depth_labels, $fk_root, $langs, $display_depth + 1);
 		}
 		if ($display_depth > 0) print '</div>';
 	}
@@ -443,8 +450,19 @@ function _wareloc_render_tree_node($node, $depth_labels, $fk_root, $langs, $disp
 
 /**
  * Recursive quick-build: create all child warehouses for one depth level.
+ *
+ * @param  DoliDB $db           Database handler
+ * @param  Conf   $conf         Configuration object
+ * @param  User   $user         User object
+ * @param  int    $parent_id    Parent warehouse ID
+ * @param  string $parent_ref   Parent warehouse ref/label
+ * @param  array  $depth_labels Depth-indexed array of level label strings
+ * @param  array  $counts       Depth-indexed array of counts to create
+ * @param  int    $depth        Current depth level
+ * @param  int    $created      Counter of created warehouses (passed by reference)
+ * @return int    Number of errors (0 = success)
  */
-function _wareloc_quickbuild_level($db, $conf, $user, $parent_id, $parent_ref, $depth_labels, $counts, $depth, &$created)
+function wareloc_quickbuild_level($db, $conf, $user, $parent_id, $parent_ref, $depth_labels, $counts, $depth, &$created)
 {
 	if (!isset($counts[$depth]) || (int) $counts[$depth] <= 0) {
 		return 0;
@@ -472,7 +490,7 @@ function _wareloc_quickbuild_level($db, $conf, $user, $parent_id, $parent_ref, $
 
 		$next_depth = $depth + 1;
 		if (isset($counts[$next_depth]) && (int) $counts[$next_depth] > 0) {
-			$sub_error = _wareloc_quickbuild_level($db, $conf, $user, $new_id, $ref, $depth_labels, $counts, $next_depth, $created);
+			$sub_error = wareloc_quickbuild_level($db, $conf, $user, $new_id, $ref, $depth_labels, $counts, $next_depth, $created);
 			if ($sub_error) {
 				$error += $sub_error;
 				break;
@@ -489,10 +507,10 @@ function _wareloc_quickbuild_level($db, $conf, $user, $parent_id, $parent_ref, $
  *
  * @param  int     $fk_node  Node warehouse ID
  * @param  int     $fk_root  Root warehouse ID
- * @param  DoliDB  $db
+ * @param  DoliDB  $db       Database handler
  * @return int     Depth (0 if node is root or lookup fails)
  */
-function _wareloc_get_node_depth($fk_node, $fk_root, $db)
+function wareloc_get_node_depth($fk_node, $fk_root, $db)
 {
 	$depth  = 0;
 	$cur_id = (int) $fk_node;

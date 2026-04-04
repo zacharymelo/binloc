@@ -276,18 +276,24 @@ function wareloc_get_leaf_ids($fk_root, $db = null)
 	$tree = wareloc_build_tree($fk_root, $db);
 	if (!$tree) return array();
 	$leaves = array();
-	_wareloc_collect_leaves($tree, $leaves);
+	wareloc_collect_leaves($tree, $leaves);
 	return $leaves;
 }
 
-/** @internal */
-function _wareloc_collect_leaves($node, &$leaves)
+/**
+ * Recursively collect leaf node IDs from a tree structure
+ *
+ * @param  array $node    Tree node with 'rowid' and 'children' keys
+ * @param  array $leaves  Collected leaf IDs (passed by reference)
+ * @return void
+ */
+function wareloc_collect_leaves($node, &$leaves)
 {
 	if (empty($node['children'])) {
 		$leaves[] = $node['rowid'];
 	} else {
 		foreach ($node['children'] as $child) {
-			_wareloc_collect_leaves($child, $leaves);
+			wareloc_collect_leaves($child, $leaves);
 		}
 	}
 }

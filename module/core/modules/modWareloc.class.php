@@ -9,8 +9,18 @@
 
 include_once DOL_DOCUMENT_ROOT.'/core/modules/DolibarrModules.class.php';
 
+/**
+ * Class modWareloc
+ *
+ * Module descriptor for Wareloc v2 — warehouse hierarchy tree builder.
+ */
 class modWareloc extends DolibarrModules
 {
+	/**
+	 * Constructor
+	 *
+	 * @param DoliDB $db Database handler
+	 */
 	public function __construct($db)
 	{
 		parent::__construct($db);
@@ -23,7 +33,7 @@ class modWareloc extends DolibarrModules
 		$this->description   = 'Warehouse hierarchy tree builder — configure and manage bin-level sub-location trees using native Dolibarr warehouse nesting';
 		$this->descriptionlong = 'Wareloc v2 extends native Dolibarr warehouse nesting (fk_parent) with a tree-builder UI, per-warehouse depth labeling, and enhanced reception/stock UX. Each root warehouse defines its own level names independently (e.g. Packout: Toolbox → Drawer → Compartment; Shelving: Row → Shelf → Bin).';
 		$this->editor_name   = 'Zachary Melo';
-		$this->version       = '2.1.1';
+		$this->version       = '2.1.2';
 		$this->const_name    = 'MAIN_MODULE_WARELOC';
 		$this->picto         = 'stock';
 

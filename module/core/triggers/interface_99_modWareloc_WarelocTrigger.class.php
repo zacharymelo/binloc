@@ -14,8 +14,18 @@
 
 require_once DOL_DOCUMENT_ROOT.'/core/triggers/dolibarrtriggers.class.php';
 
+/**
+ * Class InterfaceWarelocTrigger
+ *
+ * Wareloc v2 trigger — event logging skeleton.
+ */
 class InterfaceWarelocTrigger extends DolibarrTriggers
 {
+	/**
+	 * Constructor
+	 *
+	 * @param DoliDB $db Database handler
+	 */
 	public function __construct($db)
 	{
 		parent::__construct($db);
@@ -23,7 +33,7 @@ class InterfaceWarelocTrigger extends DolibarrTriggers
 		$this->name        = preg_replace('/^Interface/i', '', get_class($this));
 		$this->family      = 'wareloc';
 		$this->description = 'Wareloc v2 event trigger';
-		$this->version     = '2.1.1';
+		$this->version     = '2.1.2';
 		$this->picto       = 'stock';
 	}
 
