@@ -12,17 +12,9 @@ WarelocLevelNames = Level Names
 WarelocMenu = Warehouse Locations
 
 # General
-Actions = Actions
-Select = Select
-Save = Save
-Add = Add
-Cancel = Cancel
 Rename = Rename
 Deactivate = Deactivate
-Closed = Closed
 Leaf = Leaf
-Stock = Stock
-Depth = Depth
 LevelLabel = Level Name
 LevelName = Level Name
 LevelsColon = Levels

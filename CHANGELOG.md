@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.1.3] - 2026-04-21
+
+### Fixed
+- Remove dead/duplicate lang keys that collided with Dolibarr core: `Actions`, `Select`, `Save`, `Add`, `Cancel`, `Closed`, `Stock`, `Depth`. All callers were using the generic keys expecting core's values — `Actions` was the notable override (ours was "Actions", core's is "Events") that only survived because we had no callers for it.
+
 ## [2.1.2] - 2026-04-03
 
 ### Fixed
