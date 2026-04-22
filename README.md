@@ -20,7 +20,7 @@ A bulk-assign page lets you set locations across many products at once.
 
 ## Install
 
-1. Download the latest release zip from the [Releases](https://github.com/zacharymelo/wareloc/releases) page (or clone this repo into `htdocs/custom/binloc`).
+1. Download the latest release zip from the [Releases](https://github.com/zacharymelo/binloc/releases) page (or clone this repo into `htdocs/custom/binloc`).
 2. In Dolibarr, go to **Home → Setup → Modules/Applications** and enable **Bin Locations**.
 3. Configure level names under the module setup page.
 
@@ -36,6 +36,6 @@ The module directory is mounted at `/var/www/html/custom/binloc` inside the cont
 
 ---
 
-## Repo naming note
+## History
 
-This repo is named `wareloc` for historical reasons — it previously hosted a different module (Wareloc, a warehouse-nesting tree builder) that was abandoned in favour of Binloc, a ground-up rewrite. Everything in `main` from v1.6.0 onward is Binloc.
+This repo previously hosted a different module called **Wareloc** (a warehouse-nesting tree builder, versions up to 2.1.2) that was abandoned in favour of Binloc, a ground-up rewrite with a different architecture. The repo was renamed from `wareloc` to `binloc` at that point — the old URL redirects. The last Wareloc commit is tagged at `06f5363` if you need to reference it.
