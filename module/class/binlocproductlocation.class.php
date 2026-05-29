@@ -542,8 +542,20 @@ class BinlocProductLocation extends CommonObject
 			return $existing;
 		}
 
-		// Non-serialized path
+		// Non-serialized path — save incoming values before fetch overwrites them
+		$target_note   = $this->note;
+		$target_levels = array();
+		for ($i = 1; $i <= 6; $i++) {
+			$target_levels[$i] = $this->{'level'.$i.'_value'};
+		}
+
 		$existing = $this->fetchByProductWarehouseLot($this->fk_product, $this->fk_entrepot, null);
+
+		$this->note = $target_note;
+		for ($i = 1; $i <= 6; $i++) {
+			$this->{'level'.$i.'_value'} = $target_levels[$i];
+		}
+
 		if ($existing > 0) {
 			return $this->update($user);
 		} elseif ($existing == 0) {
