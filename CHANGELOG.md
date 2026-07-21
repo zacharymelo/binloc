@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.1.0] - 2026-07-21
+
+### Added
+- **Explore by bin**: the warehouse Bin Locations tab has per-level filters — dropdowns for list levels, partial-match search for text/number levels. Filters combine, survive sorting and pagination, and can be shared as URLs.
+- The "used by N location(s)" count next to each dropdown value on the Warehouse Levels admin page is now a link that opens the warehouse tab pre-filtered to exactly those locations.
+
 ## [2.0.0] - 2026-07-21
 
 Major release: normalized data model, safe update mechanics, and an AJAX UI. Existing data is migrated in place by a versioned migration runner (run automatically on module enable, or from the banner on the setup page after a file-only upgrade).

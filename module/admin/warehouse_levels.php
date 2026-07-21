@@ -337,7 +337,15 @@ if ($fk_entrepot > 0) {
 				print ' <input type="submit" class="button smallpaddingimp" value="'.dol_escape_htmltag($langs->trans('Rename')).'">';
 				print '</form>';
 				print '</td>';
-				print '<td class="opacitymedium small">'.$langs->trans('UsedByNLocations', max(0, $refs)).'</td>';
+				print '<td class="opacitymedium small">';
+				if ($refs > 0) {
+					// Explore by bin: open the warehouse tab pre-filtered to this value
+					$explore_url = dol_buildpath('/binloc/tab_warehouse_locations.php', 1).'?id='.$fk_entrepot.'&search_level'.$level_id.'='.$opt->id;
+					print '<a href="'.$explore_url.'" title="'.dol_escape_htmltag($langs->trans('ShowLocationsUsingValue')).'">'.$langs->trans('UsedByNLocations', $refs).'</a>';
+				} else {
+					print $langs->trans('UsedByNLocations', max(0, $refs));
+				}
+				print '</td>';
 				print '<td class="center nowraponall">';
 				print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'" style="display:inline">';
 				print '<input type="hidden" name="token" value="'.newToken().'">';

@@ -607,17 +607,50 @@ class BinlocProductLocation extends CommonObject
 	}
 
 	/**
+	 * SQL fragment restricting header rows (aliased "pl") to those matching
+	 * per-level bin filters.
+	 *
+	 * Each filter: array('fk_level' => int) plus either 'fk_option' => int
+	 * (exact match, list levels) or 'value' => string (partial match,
+	 * text/number levels). Filters on different levels AND together.
+	 *
+	 * @param  array  $level_filters Filters as described above
+	 * @return string                SQL fragment starting with " AND", or ''
+	 */
+	private function levelFilterSql($level_filters)
+	{
+		$sql = '';
+		foreach ((array) $level_filters as $filter) {
+			$fk_level = isset($filter['fk_level']) ? (int) $filter['fk_level'] : 0;
+			if ($fk_level <= 0) {
+				continue;
+			}
+			if (!empty($filter['fk_option'])) {
+				$cond = "v.fk_option = ".(int) $filter['fk_option'];
+			} elseif (isset($filter['value']) && $filter['value'] !== '') {
+				$cond = "v.value LIKE '%".$this->db->escape($filter['value'])."%'";
+			} else {
+				continue;
+			}
+			$sql .= " AND EXISTS (SELECT 1 FROM ".MAIN_DB_PREFIX."binloc_location_value as v";
+			$sql .= " WHERE v.fk_location = pl.rowid AND v.fk_level = ".$fk_level." AND ".$cond.")";
+		}
+		return $sql;
+	}
+
+	/**
 	 * Fetch all products with locations in a warehouse
 	 *
-	 * @param  int    $fk_entrepot Warehouse ID
-	 * @param  string $search      Optional product ref/label/batch search filter
-	 * @param  string $sortfield   Sort field
-	 * @param  string $sortorder   Sort order (ASC/DESC)
-	 * @param  int    $limit       Max rows
-	 * @param  int    $offset      Offset
-	 * @return array               Array of result objects (see fetchAllByProduct)
+	 * @param  int    $fk_entrepot   Warehouse ID
+	 * @param  string $search        Optional product ref/label/batch search filter
+	 * @param  string $sortfield     Sort field
+	 * @param  string $sortorder     Sort order (ASC/DESC)
+	 * @param  int    $limit         Max rows
+	 * @param  int    $offset        Offset
+	 * @param  array  $level_filters Optional bin filters (see levelFilterSql)
+	 * @return array                 Array of result objects (see fetchAllByProduct)
 	 */
-	public function fetchAllByWarehouse($fk_entrepot, $search = '', $sortfield = 'p.ref', $sortorder = 'ASC', $limit = 0, $offset = 0)
+	public function fetchAllByWarehouse($fk_entrepot, $search = '', $sortfield = 'p.ref', $sortorder = 'ASC', $limit = 0, $offset = 0, $level_filters = array())
 	{
 		$results = array();
 
@@ -639,6 +672,8 @@ class BinlocProductLocation extends CommonObject
 			$sql .= " OR p.label LIKE '%".$this->db->escape($search)."%'";
 			$sql .= " OR lot.batch LIKE '%".$this->db->escape($search)."%')";
 		}
+
+		$sql .= $this->levelFilterSql($level_filters);
 
 		$sql .= $this->db->order($sortfield, $sortorder);
 		if ($limit > 0) {
@@ -674,11 +709,12 @@ class BinlocProductLocation extends CommonObject
 	/**
 	 * Count products with locations in a warehouse
 	 *
-	 * @param  int    $fk_entrepot Warehouse ID
-	 * @param  string $search      Optional search filter
-	 * @return int                  Count or -1 on error
+	 * @param  int    $fk_entrepot   Warehouse ID
+	 * @param  string $search        Optional search filter
+	 * @param  array  $level_filters Optional bin filters (see levelFilterSql)
+	 * @return int                    Count or -1 on error
 	 */
-	public function countByWarehouse($fk_entrepot, $search = '')
+	public function countByWarehouse($fk_entrepot, $search = '', $level_filters = array())
 	{
 		$sql = "SELECT COUNT(*) as nb FROM ".MAIN_DB_PREFIX.$this->table_element." as pl";
 		if (!empty($search)) {
@@ -693,6 +729,8 @@ class BinlocProductLocation extends CommonObject
 			$sql .= " OR p.label LIKE '%".$this->db->escape($search)."%'";
 			$sql .= " OR lot.batch LIKE '%".$this->db->escape($search)."%')";
 		}
+
+		$sql .= $this->levelFilterSql($level_filters);
 
 		$resql = $this->db->query($sql);
 		if (!$resql) {

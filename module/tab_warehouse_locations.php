@@ -50,6 +50,26 @@ $locObj   = new BinlocProductLocation($db);
 
 $wh_levels = $levelObj->fetchByWarehouse($id);
 
+// Per-level bin filters (explore by bin): search_level{rowid} params.
+// List levels filter by option rowid (exact); text/number by partial value.
+$level_filters = array();
+$level_filter_raw = array();
+$filter_param = '';
+foreach ($wh_levels as $level_id => $cfg) {
+	$raw = GETPOST('search_level'.$level_id, 'alphanohtml');
+	if ($raw === '' || $raw === null) {
+		continue;
+	}
+	$level_filter_raw[$level_id] = $raw;
+	$filter_param .= '&search_level'.$level_id.'='.urlencode($raw);
+	if ($cfg->datatype === 'list') {
+		$level_filters[] = array('fk_level' => $level_id, 'fk_option' => (int) $raw);
+	} else {
+		$level_filters[] = array('fk_level' => $level_id, 'value' => $raw);
+	}
+}
+$has_filters = !empty($level_filters);
+
 // ---- VIEW ----
 
 llxHeader('', $langs->trans('BinLocations').' - '.$object->ref, '');
@@ -90,27 +110,44 @@ foreach ($wh_levels as $cfg) {
 print implode(' &rarr; ', $label_strs);
 print '</div>';
 
-// Search bar
+// Search bar: product search + per-level bin filters (explore by bin)
 print '<form method="GET" action="'.$_SERVER['PHP_SELF'].'">';
 print '<input type="hidden" name="id" value="'.$id.'">';
-print '<div class="marginbottomonly">';
+print '<div class="marginbottomonly binloc-filter-bar">';
 print '<input type="text" name="search_product" class="flat minwidth200" value="'.dol_escape_htmltag($search).'" placeholder="'.dol_escape_htmltag($langs->trans('SearchProduct')).'">';
+foreach ($wh_levels as $level_id => $cfg) {
+	$raw = isset($level_filter_raw[$level_id]) ? $level_filter_raw[$level_id] : '';
+	if ($cfg->datatype === 'list') {
+		print ' <select name="search_level'.$level_id.'" class="flat" aria-label="'.dol_escape_htmltag($cfg->label).'">';
+		print '<option value="">'.dol_escape_htmltag($cfg->label).'…</option>';
+		foreach ($cfg->options as $opt) {
+			$sel = ((string) $opt->id === (string) $raw) ? ' selected' : '';
+			$suffix = (!$opt->active ? ' ('.$langs->trans('LegacyValue').')' : '');
+			print '<option value="'.(int) $opt->id.'"'.$sel.'>'.dol_escape_htmltag($opt->value.$suffix).'</option>';
+		}
+		print '</select>';
+	} else {
+		print ' <input type="text" name="search_level'.$level_id.'" class="flat width75" value="'.dol_escape_htmltag($raw).'" placeholder="'.dol_escape_htmltag($cfg->label).'">';
+	}
+}
 print ' <input type="submit" class="button smallpaddingimp" value="'.$langs->trans('Search').'">';
-if (!empty($search)) {
+if (!empty($search) || $has_filters) {
 	print ' <a href="'.$_SERVER['PHP_SELF'].'?id='.$id.'" class="button smallpaddingimp">'.$langs->trans('Reset').'</a>';
 }
 print '</div>';
 print '</form>';
 
-$locations = $locObj->fetchAllByWarehouse($id, $search, $sortfield, $sortorder, $limit, $offset);
-$total     = $locObj->countByWarehouse($id, $search);
+$locations = $locObj->fetchAllByWarehouse($id, $search, $sortfield, $sortorder, $limit, $offset, $level_filters);
+$total     = $locObj->countByWarehouse($id, $search, $level_filters);
 
-if (!empty($locations) || !empty($search)) {
+$list_param = '&id='.$id.(!empty($search) ? '&search_product='.urlencode($search) : '').$filter_param;
+
+if (!empty($locations) || !empty($search) || $has_filters) {
 	print_barre_liste(
 		$langs->trans('ProductsInWarehouse', $object->ref),
 		$page,
 		$_SERVER['PHP_SELF'],
-		'&id='.$id.(!empty($search) ? '&search_product='.urlencode($search) : ''),
+		$list_param,
 		$sortfield,
 		$sortorder,
 		'',
@@ -133,8 +170,8 @@ if (!empty($locations) || !empty($search)) {
 
 	print '<table class="noborder centpercent" id="binloc-wh-table">';
 	print '<tr class="liste_titre">';
-	print_liste_field_titre('ProductRef', $_SERVER['PHP_SELF'], 'p.ref', '', '&id='.$id, '', $sortfield, $sortorder);
-	print_liste_field_titre('Label', $_SERVER['PHP_SELF'], 'p.label', '', '&id='.$id, '', $sortfield, $sortorder);
+	print_liste_field_titre('ProductRef', $_SERVER['PHP_SELF'], 'p.ref', '', $list_param, '', $sortfield, $sortorder);
+	print_liste_field_titre('Label', $_SERVER['PHP_SELF'], 'p.label', '', $list_param, '', $sortfield, $sortorder);
 	if ($has_lots) {
 		print '<td>'.$langs->trans('Lot').'/'.$langs->trans('Serial').'</td>';
 	}

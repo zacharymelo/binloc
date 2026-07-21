@@ -79,6 +79,7 @@ OptionAlreadyExists = This value already exists for this level
 OptionInUseDeactivateInstead = This value is used by %s location(s) and cannot be deleted — disable it instead
 InvalidOptionValue = Invalid value (empty or longer than 64 characters)
 UsedByNLocations = used by %s location(s)
+ShowLocationsUsingValue = Show the bin locations using this value
 NewValue = New value
 TargetWarehouseHasLevels = The target warehouse already has levels configured — remove them first to copy
 
