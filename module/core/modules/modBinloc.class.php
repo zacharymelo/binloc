@@ -34,7 +34,7 @@ class modBinloc extends DolibarrModules
 		$this->description   = 'Track product locations within warehouses using configurable bin/shelf/row levels';
 		$this->descriptionlong = 'Each warehouse defines its own location hierarchy (e.g. Row/Bay/Shelf/Bin or Case/Drawer/Bin). Products can have different location coordinates in each warehouse they occupy. Includes bulk assignment, per-warehouse and per-product views.';
 		$this->editor_name   = 'Zachary Melo';
-		$this->version       = '1.6.2';
+		$this->version       = '2.0.0';
 		$this->const_name    = 'MAIN_MODULE_BINLOC';
 		$this->picto         = 'stock';
 
@@ -43,7 +43,6 @@ class modBinloc extends DolibarrModules
 			'hooks' => array(
 				'data' => array(
 					'warehousecard',
-					'productcard',
 					'productlotcard',
 					'ordersupplierdispatch',
 				),
@@ -66,6 +65,7 @@ class modBinloc extends DolibarrModules
 		// Constants
 		$this->const = array(
 			array('BINLOC_CLEAR_ON_ZERO_STOCK', 'chaine', '0', 'Auto-clear location when product stock in warehouse drops to zero', 0, 'current', 1),
+			array('BINLOC_DEBUG_MODE', 'chaine', '0', 'Enable the Binloc diagnostics page', 0, 'current', 1),
 		);
 
 		// Tabs on other object cards
@@ -149,8 +149,12 @@ class modBinloc extends DolibarrModules
 			return -1;
 		}
 
-		// Idempotent schema migrations for existing installs
-		$this->_migrate_schema();
+		// Versioned schema/data migration. A failure does not block enabling the
+		// module: the error is stored in BINLOC_DB_MIGRATION_ERROR and shown as a
+		// banner on the setup page, where the migration can be retried.
+		dol_include_once('/binloc/class/binlocmigration.class.php');
+		$migration = new BinlocMigration($this->db);
+		$migration->run();
 
 		$this->delete_menus();
 
@@ -167,62 +171,5 @@ class modBinloc extends DolibarrModules
 	{
 		$sql = array();
 		return $this->_remove($sql, $options);
-	}
-
-	/**
-	 * Idempotent schema migrations — applied on init() for existing installs
-	 *
-	 * Each migration checks the current column state before running ALTER.
-	 * Safe to run on fresh installs (no-op) and existing ones (adds missing columns).
-	 *
-	 * @return void
-	 */
-	private function _migrate_schema()
-	{
-		// Migration 1.2.0: add fk_product_lot column to binloc_product_location
-		$this->_add_column_if_missing(
-			'binloc_product_location',
-			'fk_product_lot',
-			'INTEGER DEFAULT NULL AFTER fk_entrepot'
-		);
-
-		// Migration 1.5.0: add datatype and list_values columns to warehouse_levels
-		$this->_add_column_if_missing(
-			'binloc_warehouse_levels',
-			'datatype',
-			"VARCHAR(16) NOT NULL DEFAULT 'text' AFTER label"
-		);
-		$this->_add_column_if_missing(
-			'binloc_warehouse_levels',
-			'list_values',
-			'VARCHAR(1024) DEFAULT NULL AFTER datatype'
-		);
-	}
-
-	/**
-	 * Add a column to a table if it doesn't already exist
-	 *
-	 * @param  string $table      Table name (without prefix)
-	 * @param  string $column     Column name
-	 * @param  string $definition Column type/definition
-	 * @return void
-	 */
-	private function _add_column_if_missing($table, $column, $definition)
-	{
-		$full_table = MAIN_DB_PREFIX.$table;
-
-		$sql = "SHOW COLUMNS FROM ".$full_table." LIKE '".$this->db->escape($column)."'";
-		$resql = $this->db->query($sql);
-		if (!$resql) {
-			return;
-		}
-
-		$exists = ($this->db->num_rows($resql) > 0);
-		$this->db->free($resql);
-
-		if (!$exists) {
-			$alter = "ALTER TABLE ".$full_table." ADD COLUMN ".$column." ".$definition;
-			$this->db->query($alter);
-		}
 	}
 }

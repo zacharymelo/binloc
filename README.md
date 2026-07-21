@@ -13,6 +13,17 @@ Each warehouse can define its own location hierarchy — you're not forced into 
 
 A bulk-assign page lets you set locations across many products at once.
 
+Levels can be free text, numbers, or managed dropdown lists. Dropdown values are managed per level on the admin page — renaming a value updates every existing assignment automatically, and values in use can be disabled but not deleted, so bin data is never silently orphaned.
+
+## Upgrading from 1.x
+
+Version 2.0.0 restructures how bin values are stored (normalized tables instead of positional text columns). Existing data is migrated in place:
+
+- If you re-enable the module after replacing the files, the migration runs automatically.
+- If you replace the files while the module stays enabled, open **module setup** — a banner shows the pending migration with a **Run migration** button.
+
+The destructive part of the migration (dropping the old columns) only happens after a verification step confirms every legacy value has been migrated. Values that no longer match the configured lists are preserved as "(legacy)" entries.
+
 ## Requirements
 
 - Dolibarr 22 or later

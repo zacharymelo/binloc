@@ -5,6 +5,9 @@
  * \file    tab_warehouse_locations.php
  * \ingroup binloc
  * \brief   Warehouse card tab — shows all product bin locations in this warehouse
+ *
+ * Row edits and deletes go through the Binloc AJAX endpoints; the page keeps
+ * server-side search/sort/pagination.
  */
 
 $res = 0;
@@ -22,8 +25,6 @@ dol_include_once('/binloc/class/binlocproductlocation.class.php');
 $langs->loadLangs(array('products', 'stocks', 'binloc@binloc'));
 
 $id     = GETPOSTINT('id');
-$action = GETPOST('action', 'aZ09');
-$mode   = GETPOST('mode', 'aZ09');
 $search = GETPOST('search_product', 'alphanohtml');
 
 // Pagination
@@ -42,41 +43,22 @@ if (empty($object->id) || $object->id <= 0) {
 	accessforbidden('Warehouse not found');
 }
 
+$can_write = $user->hasRight('binloc', 'write');
+
 $levelObj = new BinlocWarehouseLevel($db);
 $locObj   = new BinlocProductLocation($db);
 
 $wh_levels = $levelObj->fetchByWarehouse($id);
 
-// ---- ACTIONS ----
-
-if ($action === 'saveinline' && $user->hasRight('binloc', 'write')) {
-	$edit_product_id = GETPOSTINT('edit_product_id');
-	if ($edit_product_id > 0) {
-		$locObj->fk_product  = $edit_product_id;
-		$locObj->fk_entrepot = $id;
-		for ($i = 1; $i <= 6; $i++) {
-			$locObj->{'level'.$i.'_value'} = GETPOST('level'.$i.'_value', 'alphanohtml');
-		}
-		$locObj->note = GETPOST('loc_note', 'alphanohtml');
-
-		$result = $locObj->createOrUpdate($user);
-		if ($result > 0) {
-			setEventMessages($langs->trans('LocationSaved'), null, 'mesgs');
-		} else {
-			setEventMessages($locObj->error, null, 'errors');
-		}
-	}
-	$action = '';
-}
-
 // ---- VIEW ----
 
 llxHeader('', $langs->trans('BinLocations').' - '.$object->ref, '');
 
+binloc_print_assets();
+
 $head = stock_prepare_head($object);
 print dol_get_fiche_head($head, 'binloc', $langs->trans('Warehouse'), -1, 'stock');
 
-// Warehouse banner
 $linkback = '<a href="'.DOL_URL_ROOT.'/product/stock/list.php?restore_lastsearch_values=1">'.$langs->trans('BackToList').'</a>';
 dol_banner_tab($object, 'id', $linkback, 1, 'rowid', 'ref');
 
@@ -120,14 +102,10 @@ if (!empty($search)) {
 print '</div>';
 print '</form>';
 
-// Fetch product locations for this warehouse
 $locations = $locObj->fetchAllByWarehouse($id, $search, $sortfield, $sortorder, $limit, $offset);
 $total     = $locObj->countByWarehouse($id, $search);
 
-$edit_product = ($mode === 'edit') ? GETPOSTINT('edit_pid') : 0;
-
 if (!empty($locations) || !empty($search)) {
-	// Pagination
 	print_barre_liste(
 		$langs->trans('ProductsInWarehouse', $object->ref),
 		$page,
@@ -145,7 +123,6 @@ if (!empty($locations) || !empty($search)) {
 		$limit
 	);
 
-	// Check if any location has a lot/serial
 	$has_lots = false;
 	foreach ($locations as $loc) {
 		if (!empty($loc->lot_batch)) {
@@ -154,7 +131,7 @@ if (!empty($locations) || !empty($search)) {
 		}
 	}
 
-	print '<table class="noborder centpercent">';
+	print '<table class="noborder centpercent" id="binloc-wh-table">';
 	print '<tr class="liste_titre">';
 	print_liste_field_titre('ProductRef', $_SERVER['PHP_SELF'], 'p.ref', '', '&id='.$id, '', $sortfield, $sortorder);
 	print_liste_field_titre('Label', $_SERVER['PHP_SELF'], 'p.label', '', '&id='.$id, '', $sortfield, $sortorder);
@@ -162,7 +139,7 @@ if (!empty($locations) || !empty($search)) {
 		print '<td>'.$langs->trans('Lot').'/'.$langs->trans('Serial').'</td>';
 	}
 	print '<td class="right">'.$langs->trans('Stock').'</td>';
-	foreach ($wh_levels as $num => $cfg) {
+	foreach ($wh_levels as $cfg) {
 		print '<td>'.dol_escape_htmltag($cfg->label).'</td>';
 	}
 	print '<td>'.$langs->trans('LocationNote').'</td>';
@@ -175,60 +152,30 @@ if (!empty($locations) || !empty($search)) {
 	}
 
 	foreach ($locations as $loc) {
-		$is_editing = ($edit_product == $loc->fk_product);
 		$product_url = dol_buildpath('/product/card.php?id='.$loc->fk_product, 1);
 
-		if ($is_editing) {
-			print '<tr class="oddeven">';
-			print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'">';
-			print '<input type="hidden" name="token" value="'.newToken().'">';
-			print '<input type="hidden" name="id" value="'.$id.'">';
-			print '<input type="hidden" name="action" value="saveinline">';
-			print '<input type="hidden" name="edit_product_id" value="'.$loc->fk_product.'">';
-			if (!empty($search)) {
-				print '<input type="hidden" name="search_product" value="'.dol_escape_htmltag($search).'">';
-			}
-			print '<td><a href="'.$product_url.'">'.dol_escape_htmltag($loc->product_ref).'</a></td>';
-			print '<td>'.dol_escape_htmltag($loc->product_label).'</td>';
-			if ($has_lots) {
-				print '<td>'.(!empty($loc->lot_batch) ? dol_escape_htmltag($loc->lot_batch) : '').'</td>';
-			}
-			print '<td class="right">'.price2num($loc->stock, 0).'</td>';
-			foreach ($wh_levels as $num => $cfg) {
-				$val = $loc->{'level'.$num.'_value'};
-				print '<td>'.binloc_render_level_input($cfg, 'level'.$num.'_value', $val, 'flat width75').'</td>';
-			}
-			print '<td><input type="text" name="loc_note" class="flat width100" value="'.dol_escape_htmltag($loc->note).'"></td>';
-			print '<td class="center nowraponall">';
-			print '<input type="submit" class="button smallpaddingimp" value="'.dol_escape_htmltag($langs->trans('Save')).'">';
-			print ' <a href="'.$_SERVER['PHP_SELF'].'?id='.$id.(!empty($search) ? '&search_product='.urlencode($search) : '').'" class="button smallpaddingimp">'.$langs->trans('Cancel').'</a>';
-			print '</td>';
-			print '</form>';
-			print '</tr>';
-		} else {
-			print '<tr class="oddeven">';
-			print '<td><a href="'.$product_url.'">'.dol_escape_htmltag($loc->product_ref).'</a></td>';
-			print '<td>'.dol_escape_htmltag($loc->product_label).'</td>';
-			if ($has_lots) {
-				print '<td>'.(!empty($loc->lot_batch) ? dol_escape_htmltag($loc->lot_batch) : '').'</td>';
-			}
-			print '<td class="right">'.price2num($loc->stock, 0).'</td>';
-			foreach ($wh_levels as $num => $cfg) {
-				$val = $loc->{'level'.$num.'_value'};
-				print '<td>'.($val !== null && $val !== '' ? dol_escape_htmltag($val) : '<span class="opacitymedium">—</span>').'</td>';
-			}
-			print '<td>'.($loc->note ? dol_escape_htmltag($loc->note) : '').'</td>';
-			print '<td class="center">';
-			if ($user->hasRight('binloc', 'write')) {
-				$edit_url = $_SERVER['PHP_SELF'].'?id='.$id.'&mode=edit&edit_pid='.$loc->fk_product;
-				if (!empty($search)) {
-					$edit_url .= '&search_product='.urlencode($search);
-				}
-				print '<a href="'.$edit_url.'">'.img_picto($langs->trans('EditLocation'), 'edit').'</a>';
-			}
-			print '</td>';
-			print '</tr>';
+		print '<tr class="oddeven" data-fk-product="'.$loc->fk_product.'" data-fk-entrepot="'.$id.'"';
+		print ' data-loc-id="'.$loc->rowid.'" data-fk-lot="'.$loc->fk_product_lot.'" data-note="'.dol_escape_htmltag((string) $loc->note).'">';
+		print '<td><a href="'.$product_url.'">'.dol_escape_htmltag($loc->product_ref).'</a></td>';
+		print '<td>'.dol_escape_htmltag($loc->product_label).'</td>';
+		if ($has_lots) {
+			print '<td>'.(!empty($loc->lot_batch) ? dol_escape_htmltag($loc->lot_batch) : '').'</td>';
 		}
+		print '<td class="right">'.price2num($loc->stock, 0).'</td>';
+		foreach ($wh_levels as $level_id => $cfg) {
+			$display = isset($loc->values[$level_id]) ? $loc->values[$level_id]->display : '';
+			print '<td class="binloc-val-cell" data-level="'.$level_id.'">';
+			print ($display !== null && $display !== '') ? dol_escape_htmltag($display) : '<span class="opacitymedium">&mdash;</span>';
+			print '</td>';
+		}
+		print '<td class="binloc-note-cell">'.($loc->note ? dol_escape_htmltag($loc->note) : '').'</td>';
+		print '<td class="center nowraponall binloc-actions-cell">';
+		if ($can_write) {
+			print '<a href="#" class="binloc-row-edit">'.img_picto($langs->trans('EditLocation'), 'edit').'</a> ';
+			print '<a href="#" class="binloc-row-delete">'.img_picto($langs->trans('RemoveLocation'), 'delete').'</a>';
+		}
+		print '</td>';
+		print '</tr>';
 	}
 
 	print '</table>';
@@ -236,8 +183,8 @@ if (!empty($locations) || !empty($search)) {
 	print '<div class="opacitymedium">'.$langs->trans('NoProductsWithStock').'</div>';
 }
 
-// Link to bulk assign
-if ($user->hasRight('binloc', 'write')) {
+// Links to bulk assign / level setup
+if ($can_write) {
 	$bulk_url = dol_buildpath('/binloc/bulk_assign.php?fk_entrepot='.$id, 1);
 	print '<div class="margintoponly">';
 	print '<a href="'.$bulk_url.'" class="button">';
@@ -255,5 +202,95 @@ if ($user->hasRight('binloc', 'write')) {
 
 print '</div>';
 print dol_get_fiche_end();
+
+if ($can_write) {
+	print '<script>
+jQuery(function ($) {
+	Binloc.config.msgSaved = "'.dol_escape_js($langs->trans('LocationSaved')).'";
+	Binloc.config.msgRemoved = "'.dol_escape_js($langs->trans('LocationRemoved')).'";
+	var $table = $("#binloc-wh-table");
+
+	// Inline edit: distribute the server-rendered inputs into the level cells
+	$table.on("click", ".binloc-row-edit", function (e) {
+		e.preventDefault();
+		var $row = $(this).closest("tr");
+		if ($row.hasClass("binloc-editing")) { return; }
+		var prefix = "wh" + $row.data("fk-product") + "_";
+		Binloc.fetchLevels($row.data("fk-entrepot"), prefix, $row.data("loc-id"), function (err, data) {
+			if (err) { Binloc.toast(err, true); return; }
+			$row.addClass("binloc-editing");
+			var $stash = $("<div>").html(data.html);
+			$row.find(".binloc-val-cell").each(function () {
+				var $input = $stash.find(".binloc-level-input").filter("[data-level=\'" + $(this).data("level") + "\']");
+				$(this).data("binloc-orig", $(this).html());
+				$(this).empty().append($input.length ? $input : "");
+			});
+			var $noteCell = $row.find(".binloc-note-cell");
+			$noteCell.data("binloc-orig", $noteCell.html());
+			$noteCell.empty().append($("<input type=\"text\" class=\"flat width100 binloc-note-input\">").val($row.data("note") || ""));
+			var $actions = $row.find(".binloc-actions-cell");
+			$actions.data("binloc-orig", $actions.html());
+			$actions.empty()
+				.append($("<a href=\"#\" class=\"binloc-row-save\">").append("'.dol_escape_js(img_picto('', 'save')).'"))
+				.append(" ")
+				.append($("<a href=\"#\" class=\"binloc-row-cancel\">").append("'.dol_escape_js(img_picto('', 'cancel')).'"));
+		});
+	});
+
+	function restoreRow($row) {
+		$row.find(".binloc-val-cell, .binloc-note-cell, .binloc-actions-cell").each(function () {
+			if ($(this).data("binloc-orig") !== undefined) {
+				$(this).html($(this).data("binloc-orig")).removeData("binloc-orig");
+			}
+		});
+		$row.removeClass("binloc-editing");
+	}
+
+	$table.on("click", ".binloc-row-cancel", function (e) {
+		e.preventDefault();
+		restoreRow($(this).closest("tr"));
+	});
+
+	$table.on("click", ".binloc-row-save", function (e) {
+		e.preventDefault();
+		var $row = $(this).closest("tr");
+		var params = {
+			fk_product: $row.data("fk-product"),
+			fk_entrepot: $row.data("fk-entrepot"),
+			fk_product_lot: $row.data("fk-lot") || 0,
+			note: $row.find(".binloc-note-input").val()
+		};
+		var displays = {};
+		$row.find(".binloc-level-input").each(function () {
+			params["binloc_level" + $(this).data("level")] = $(this).val();
+			displays[$(this).data("level")] = this.tagName === "SELECT"
+				? ($(this).val() ? $(this).find("option:selected").text() : "")
+				: $(this).val();
+		});
+		Binloc.saveLocation(params, function (err, resp) {
+			if (err) { return; }
+			$row.data("loc-id", resp.id).data("note", params.note);
+			$row.find(".binloc-val-cell").each(function () {
+				var d = displays[$(this).data("level")];
+				$(this).removeData("binloc-orig").html(d ? $("<span>").text(d) : "<span class=\"opacitymedium\">&mdash;</span>");
+			});
+			$row.find(".binloc-note-cell").removeData("binloc-orig").text(params.note || "");
+			var $actions = $row.find(".binloc-actions-cell");
+			$actions.html($actions.data("binloc-orig")).removeData("binloc-orig");
+			$row.removeClass("binloc-editing");
+		});
+	});
+
+	$table.on("click", ".binloc-row-delete", function (e) {
+		e.preventDefault();
+		var $row = $(this).closest("tr");
+		Binloc.deleteLocation($row.data("loc-id"), "'.dol_escape_js($langs->trans('ConfirmRemoveLocation', $object->ref)).'", function () {
+			$row.remove();
+		});
+	});
+});
+</script>';
+}
+
 llxFooter();
 $db->close();

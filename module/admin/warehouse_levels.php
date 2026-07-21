@@ -4,7 +4,13 @@
 /**
  * \file    admin/warehouse_levels.php
  * \ingroup binloc
- * \brief   Per-warehouse level configuration — define location hierarchy labels and types
+ * \brief   Per-warehouse level configuration — labels, types, order and list options
+ *
+ * Levels have stable identity (rowid): edits are in-place updates via
+ * applyWarehouseLevels(), so reordering or removing a level never re-labels
+ * existing location data. List values are managed per level in the options
+ * sub-editor — renaming an option propagates to every assignment because
+ * values reference options by rowid.
  */
 
 $res = 0;
@@ -15,6 +21,7 @@ if (!$res) { die("Include of main fails"); }
 require_once DOL_DOCUMENT_ROOT.'/core/lib/admin.lib.php';
 dol_include_once('/binloc/lib/binloc.lib.php');
 dol_include_once('/binloc/class/binlocwarehouselevel.class.php');
+dol_include_once('/binloc/class/binloclevaloption.class.php');
 
 $langs->loadLangs(array('admin', 'stocks', 'binloc@binloc'));
 
@@ -25,7 +32,8 @@ if (!$user->admin && !$user->hasRight('binloc', 'admin')) {
 $action      = GETPOST('action', 'aZ09');
 $fk_entrepot = GETPOSTINT('fk_entrepot');
 
-$levelObj = new BinlocWarehouseLevel($db);
+$levelObj  = new BinlocWarehouseLevel($db);
+$optionObj = new BinlocLevelOption($db);
 
 // Placeholder hints per depth
 $level_hints = array(
@@ -37,43 +45,53 @@ $level_hints = array(
 	6 => 'LevelHint6',
 );
 
+/**
+ * A level id posted by an option action must belong to the selected warehouse
+ *
+ * @param  array $levels Current level configs keyed by rowid
+ * @param  int   $level_id Posted level rowid
+ * @return bool
+ */
+function binloc_admin_level_belongs($levels, $level_id)
+{
+	return $level_id > 0 && isset($levels[$level_id]);
+}
+
 // ---- ACTIONS ----
 
-if ($action === 'savelevels' && $fk_entrepot > 0) {
-	$labels      = GETPOST('labels', 'array');
-	$datatypes   = GETPOST('datatypes', 'array');
-	$list_values = GETPOST('list_values', 'array');
+$current_levels = ($fk_entrepot > 0) ? $levelObj->fetchByWarehouse($fk_entrepot, true) : array();
 
-	$clean = array();
-	$num = 1;
+if ($action === 'savelevels' && $fk_entrepot > 0) {
+	$level_ids = GETPOST('level_ids', 'array');
+	$labels    = GETPOST('labels', 'array');
+	$datatypes = GETPOST('datatypes', 'array');
+
+	$rows = array();
+	$position = 0;
 	if (is_array($labels)) {
 		foreach ($labels as $idx => $label) {
 			$label = trim($label);
-			if (!empty($label) && $num <= 6) {
-				$dt = isset($datatypes[$idx]) ? $datatypes[$idx] : 'text';
-				$lv = isset($list_values[$idx]) ? trim($list_values[$idx]) : '';
-				$clean[$num] = array(
-					'label'       => $label,
-					'datatype'    => in_array($dt, array('text', 'number', 'list'), true) ? $dt : 'text',
-					'list_values' => $lv,
-				);
-				$num++;
+			if ($label === '') {
+				continue;
 			}
+			$position++;
+			$rows[] = array(
+				'id'       => isset($level_ids[$idx]) ? (int) $level_ids[$idx] : 0,
+				'label'    => $label,
+				'datatype' => isset($datatypes[$idx]) ? $datatypes[$idx] : 'text',
+				'position' => $position,
+			);
 		}
 	}
 
-	if (empty($clean)) {
-		$levelObj->deleteByWarehouse($fk_entrepot);
+	$result = $levelObj->applyWarehouseLevels($fk_entrepot, $rows, $user);
+	if ($result > 0) {
 		setEventMessages($langs->trans('LevelsSaved'), null, 'mesgs');
 	} else {
-		$result = $levelObj->saveWarehouseLevels($fk_entrepot, $clean, $user);
-		if ($result > 0) {
-			setEventMessages($langs->trans('LevelsSaved'), null, 'mesgs');
-		} else {
-			setEventMessages($levelObj->error, null, 'errors');
-		}
+		setEventMessages($levelObj->error, null, 'errors');
 	}
 	$action = '';
+	$current_levels = $levelObj->fetchByWarehouse($fk_entrepot, true);
 }
 
 if ($action === 'copylevels' && $fk_entrepot > 0) {
@@ -82,11 +100,71 @@ if ($action === 'copylevels' && $fk_entrepot > 0) {
 		$result = $levelObj->copyFromWarehouse($source_wh, $fk_entrepot, $user);
 		if ($result > 0) {
 			setEventMessages($langs->trans('CopyLevelsDone'), null, 'mesgs');
+		} elseif ($result == -2) {
+			setEventMessages($langs->trans('TargetWarehouseHasLevels'), null, 'errors');
 		} else {
 			setEventMessages($levelObj->error, null, 'errors');
 		}
 	}
 	$action = '';
+	$current_levels = $levelObj->fetchByWarehouse($fk_entrepot, true);
+}
+
+// Option sub-editor actions
+if ($fk_entrepot > 0 && in_array($action, array('addoption', 'renameoption', 'toggleoption', 'deleteoption'), true)) {
+	$level_id  = GETPOSTINT('level_id');
+	$option_id = GETPOSTINT('option_id');
+
+	if (!binloc_admin_level_belongs($current_levels, $level_id)) {
+		setEventMessages('Invalid level', null, 'errors');
+	} elseif ($action === 'addoption') {
+		$value = GETPOST('option_value', 'alphanohtml');
+		$max_pos = 0;
+		foreach ($current_levels[$level_id]->options as $opt) {
+			$max_pos = max($max_pos, $opt->position);
+		}
+		$result = $optionObj->create($level_id, $value, $max_pos + 1, $user);
+		if ($result > 0) {
+			setEventMessages($langs->trans('OptionAdded'), null, 'mesgs');
+		} else {
+			setEventMessages($langs->trans($optionObj->error), null, 'errors');
+		}
+	} else {
+		// Option must belong to the level
+		$owned = false;
+		foreach ($current_levels[$level_id]->options as $opt) {
+			if ((int) $opt->id === $option_id) {
+				$owned = true;
+				break;
+			}
+		}
+		if (!$owned) {
+			setEventMessages('Invalid option', null, 'errors');
+		} elseif ($action === 'renameoption') {
+			$result = $optionObj->rename($option_id, GETPOST('option_value', 'alphanohtml'), $user);
+			if ($result > 0) {
+				setEventMessages($langs->trans('OptionRenamed'), null, 'mesgs');
+			} else {
+				setEventMessages($langs->trans($optionObj->error), null, 'errors');
+			}
+		} elseif ($action === 'toggleoption') {
+			$result = $optionObj->setActive($option_id, GETPOSTINT('active'), $user);
+			if ($result <= 0) {
+				setEventMessages($langs->trans($optionObj->error), null, 'errors');
+			}
+		} elseif ($action === 'deleteoption') {
+			$result = $optionObj->deleteIfUnreferenced($option_id);
+			if ($result > 0) {
+				setEventMessages($langs->trans('OptionDeleted'), null, 'mesgs');
+			} elseif ($result == -2) {
+				setEventMessages($langs->trans('OptionInUseDeactivateInstead', $optionObj->countReferences($option_id)), null, 'warnings');
+			} else {
+				setEventMessages($langs->trans($optionObj->error), null, 'errors');
+			}
+		}
+	}
+	$action = '';
+	$current_levels = $levelObj->fetchByWarehouse($fk_entrepot, true);
 }
 
 // ---- VIEW ----
@@ -94,130 +172,129 @@ if ($action === 'copylevels' && $fk_entrepot > 0) {
 $page_name = 'BinlocSetup';
 llxHeader('', $langs->trans($page_name), '');
 
+binloc_print_assets();
+
 $head = binloc_admin_prepare_head();
 print dol_get_fiche_head($head, 'warehouselevels', $langs->trans($page_name), -1, 'stock');
 
 // Warehouse selector
-$warehouses = binloc_get_warehouses($db);
-
 print '<div class="marginbottomonly">';
 print '<form method="GET" action="'.$_SERVER['PHP_SELF'].'" style="display:inline">';
 print '<strong>'.$langs->trans('Warehouse').'</strong>: ';
-print '<select name="fk_entrepot" class="flat minwidth250" onchange="this.form.submit()">';
-print '<option value="0">'.$langs->trans('SelectWarehouse').'</option>';
-foreach ($warehouses as $wh) {
-	$sel = ($fk_entrepot == $wh->rowid) ? ' selected' : '';
-	print '<option value="'.$wh->rowid.'"'.$sel.'>'.dol_escape_htmltag($wh->ref);
-	if ($wh->lieu) {
-		print ' - '.dol_escape_htmltag($wh->lieu);
-	}
-	print '</option>';
-}
-print '</select>';
+print binloc_render_warehouse_select($db, 'fk_entrepot', $fk_entrepot, 'flat minwidth250', 'onchange="this.form.submit()"');
 print ' <input type="submit" class="button smallpaddingimp" value="'.$langs->trans('Select').'">';
 print '</form>';
 print '</div>';
 
 if ($fk_entrepot > 0) {
-	$current_levels = $levelObj->fetchByWarehouse($fk_entrepot);
+	$warehouses = binloc_get_warehouses($db);
 
-	// ---- Copy from another warehouse ----
-	$other_wh_with_levels = array();
-	foreach ($warehouses as $wh) {
-		if ($wh->rowid == $fk_entrepot) {
-			continue;
-		}
-		$wh_levels = $levelObj->fetchByWarehouse($wh->rowid);
-		if (!empty($wh_levels)) {
-			$wh->levels = $wh_levels;
-			$other_wh_with_levels[] = $wh;
-		}
-	}
-
-	if (!empty($other_wh_with_levels)) {
-		print '<div class="marginbottomonly">';
-		print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'" style="display:inline">';
-		print '<input type="hidden" name="token" value="'.newToken().'">';
-		print '<input type="hidden" name="action" value="copylevels">';
-		print '<input type="hidden" name="fk_entrepot" value="'.$fk_entrepot.'">';
-		print $langs->trans('CopyFromWarehouse').': ';
-		print '<select name="source_wh" class="flat minwidth200">';
-		print '<option value="0">---</option>';
-		foreach ($other_wh_with_levels as $wh) {
-			$label_parts = array();
-			foreach ($wh->levels as $lcfg) {
-				$label_parts[] = $lcfg->label;
+	// ---- Copy from another warehouse (only offered while target is empty) ----
+	if (empty($current_levels)) {
+		$other_wh_with_levels = array();
+		foreach ($warehouses as $wh) {
+			if ($wh->rowid == $fk_entrepot) {
+				continue;
 			}
-			print '<option value="'.$wh->rowid.'">'.dol_escape_htmltag($wh->ref);
-			print ' ('.implode(' &rarr; ', array_map('dol_escape_htmltag', $label_parts)).')';
-			print '</option>';
+			$wh_levels = $levelObj->fetchByWarehouse($wh->rowid);
+			if (!empty($wh_levels)) {
+				$wh->levels = $wh_levels;
+				$other_wh_with_levels[] = $wh;
+			}
 		}
-		print '</select>';
-		print ' <input type="submit" class="button smallpaddingimp" value="'.dol_escape_htmltag($langs->trans('CopyLevels')).'">';
-		print '</form>';
-		print '</div>';
+
+		if (!empty($other_wh_with_levels)) {
+			print '<div class="marginbottomonly">';
+			print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'" style="display:inline">';
+			print '<input type="hidden" name="token" value="'.newToken().'">';
+			print '<input type="hidden" name="action" value="copylevels">';
+			print '<input type="hidden" name="fk_entrepot" value="'.$fk_entrepot.'">';
+			print $langs->trans('CopyFromWarehouse').': ';
+			print '<select name="source_wh" class="flat minwidth200">';
+			print '<option value="0">---</option>';
+			foreach ($other_wh_with_levels as $wh) {
+				$label_parts = array();
+				foreach ($wh->levels as $lcfg) {
+					$label_parts[] = $lcfg->label;
+				}
+				print '<option value="'.$wh->rowid.'">'.dol_escape_htmltag($wh->ref);
+				print ' ('.implode(' &rarr; ', array_map('dol_escape_htmltag', $label_parts)).')';
+				print '</option>';
+			}
+			print '</select>';
+			print ' <input type="submit" class="button smallpaddingimp" value="'.dol_escape_htmltag($langs->trans('CopyLevels')).'">';
+			print '</form>';
+			print '</div>';
+		}
 	}
 
-	// ---- Level editor ----
+	// ---- Level editor (stable rowids, order = row order) ----
 	print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'" id="binloc-level-form">';
 	print '<input type="hidden" name="token" value="'.newToken().'">';
 	print '<input type="hidden" name="action" value="savelevels">';
 	print '<input type="hidden" name="fk_entrepot" value="'.$fk_entrepot.'">';
 
 	print '<table class="noborder centpercent" id="binloc-level-table">';
+	print '<tbody>';
 	print '<tr class="liste_titre">';
 	print '<td class="center" width="60">'.$langs->trans('Level').'</td>';
-	print '<td width="200">'.$langs->trans('LevelLabel').'</td>';
-	print '<td width="120">'.$langs->trans('Type').'</td>';
-	print '<td>'.$langs->trans('ListValues').' <span class="opacitymedium small">('.$langs->trans('ListValuesHint').')</span></td>';
-	print '<td class="center" width="40"></td>';
+	print '<td width="220">'.$langs->trans('LevelLabel').'</td>';
+	print '<td width="140">'.$langs->trans('Type').'</td>';
+	print '<td>'.$langs->trans('Status').'</td>';
+	print '<td class="center" width="100"></td>';
 	print '</tr>';
 
-	// Render existing levels (or one empty row if none)
-	if (!empty($current_levels)) {
-		$display_levels = $current_levels;
-	} else {
-		$empty = new stdClass();
-		$empty->label = '';
-		$empty->datatype = 'text';
-		$empty->list_values = '';
-		$display_levels = array(1 => $empty);
-	}
-
 	$row_num = 0;
-	foreach ($display_levels as $num => $cfg) {
+	foreach ($current_levels as $level_id => $cfg) {
 		$row_num++;
 		$hint = isset($level_hints[$row_num]) ? $langs->trans($level_hints[$row_num]) : '';
-		$label_val = is_object($cfg) ? $cfg->label : (string) $cfg;
-		$dt_val    = is_object($cfg) ? $cfg->datatype : 'text';
-		$lv_val    = (is_object($cfg) && !empty($cfg->list_values)) ? $cfg->list_values : '';
-		$lv_visible = ($dt_val === 'list') ? '' : ' style="display:none"';
 
 		print '<tr class="oddeven binloc-level-row">';
-		print '<td class="center opacitymedium"><span class="binloc-level-num">'.$row_num.'</span></td>';
-		print '<td><input type="text" name="labels[]" class="flat minwidth150" value="'.dol_escape_htmltag($label_val).'" placeholder="'.dol_escape_htmltag($hint).'"></td>';
+		print '<td class="center opacitymedium"><span class="binloc-level-num">'.$row_num.'</span>';
+		print '<input type="hidden" name="level_ids[]" value="'.$level_id.'"></td>';
+		print '<td><input type="text" name="labels[]" class="flat minwidth150" value="'.dol_escape_htmltag($cfg->label).'" placeholder="'.dol_escape_htmltag($hint).'"></td>';
 		print '<td>';
-		print '<select name="datatypes[]" class="flat binloc-type-select" onchange="binlocOnTypeChange(this)">';
-		print '<option value="text"'.($dt_val === 'text' ? ' selected' : '').'>'.$langs->trans('TypeText').'</option>';
-		print '<option value="number"'.($dt_val === 'number' ? ' selected' : '').'>'.$langs->trans('TypeNumber').'</option>';
-		print '<option value="list"'.($dt_val === 'list' ? ' selected' : '').'>'.$langs->trans('TypeList').'</option>';
+		print '<select name="datatypes[]" class="flat binloc-type-select">';
+		print '<option value="text"'.($cfg->datatype === 'text' ? ' selected' : '').'>'.$langs->trans('TypeText').'</option>';
+		print '<option value="number"'.($cfg->datatype === 'number' ? ' selected' : '').'>'.$langs->trans('TypeNumber').'</option>';
+		print '<option value="list"'.($cfg->datatype === 'list' ? ' selected' : '').'>'.$langs->trans('TypeList').'</option>';
 		print '</select>';
 		print '</td>';
-		print '<td><input type="text" name="list_values[]" class="flat centpercent binloc-listvalues-input" value="'.dol_escape_htmltag($lv_val).'" placeholder="'.dol_escape_htmltag($langs->trans('ListValuesPlaceholder')).'"'.$lv_visible.'></td>';
-		print '<td class="center">';
-		if ($row_num > 1 || count($display_levels) > 1) {
-			print '<a href="#" class="binloc-remove-level" onclick="binlocRemoveLevel(this); return false;" title="'.$langs->trans('RemoveLevel').'">';
-			print img_picto($langs->trans('RemoveLevel'), 'delete');
-			print '</a>';
-		}
+		print '<td>'.($cfg->active ? '' : '<span class="opacitymedium binloc-legacy">'.$langs->trans('Disabled').'</span>').'</td>';
+		print '<td class="center nowraponall">';
+		print '<a href="#" class="binloc-move-up" title="'.$langs->trans('Up').'">&uarr;</a> ';
+		print '<a href="#" class="binloc-move-down" title="'.$langs->trans('Down').'">&darr;</a> ';
+		print '<a href="#" class="binloc-remove-level" title="'.$langs->trans('RemoveLevel').'">'.img_picto($langs->trans('RemoveLevel'), 'delete').'</a>';
 		print '</td>';
 		print '</tr>';
 	}
-
+	print '</tbody>';
 	print '</table>';
 
+	// New-row template — server-rendered once, cloned by JS (single source of markup)
+	print '<template id="binloc-level-row-template">';
+	print '<tr class="oddeven binloc-level-row">';
+	print '<td class="center opacitymedium"><span class="binloc-level-num"></span>';
+	print '<input type="hidden" name="level_ids[]" value="0"></td>';
+	print '<td><input type="text" name="labels[]" class="flat minwidth150" value=""></td>';
+	print '<td>';
+	print '<select name="datatypes[]" class="flat binloc-type-select">';
+	print '<option value="text">'.$langs->trans('TypeText').'</option>';
+	print '<option value="number">'.$langs->trans('TypeNumber').'</option>';
+	print '<option value="list">'.$langs->trans('TypeList').'</option>';
+	print '</select>';
+	print '</td>';
+	print '<td></td>';
+	print '<td class="center nowraponall">';
+	print '<a href="#" class="binloc-move-up" title="'.$langs->trans('Up').'">&uarr;</a> ';
+	print '<a href="#" class="binloc-move-down" title="'.$langs->trans('Down').'">&darr;</a> ';
+	print '<a href="#" class="binloc-remove-level" title="'.$langs->trans('RemoveLevel').'">'.img_picto($langs->trans('RemoveLevel'), 'delete').'</a>';
+	print '</td>';
+	print '</tr>';
+	print '</template>';
+
 	print '<div class="margintoponly">';
-	print '<a href="#" id="binloc-add-level" class="button smallpaddingimp" onclick="binlocAddLevel(); return false;">';
+	print '<a href="#" id="binloc-add-level" class="button smallpaddingimp">';
 	print img_picto('', 'add', 'class="pictofixedwidth"').$langs->trans('AddLevel');
 	print '</a>';
 	print ' <input type="submit" class="button" value="'.dol_escape_htmltag($langs->trans('Save')).'">';
@@ -225,7 +302,81 @@ if ($fk_entrepot > 0) {
 
 	print '</form>';
 
-	// ---- JS for dynamic rows ----
+	// ---- Options sub-editor for list-type levels ----
+	$list_levels = array();
+	foreach ($current_levels as $level_id => $cfg) {
+		if ($cfg->datatype === 'list') {
+			$list_levels[$level_id] = $cfg;
+		}
+	}
+
+	if (!empty($list_levels)) {
+		print '<br><div class="underbanner marginbottomonly"><strong>'.$langs->trans('ListValues').'</strong></div>';
+		print '<div class="opacitymedium marginbottomonly small">'.$langs->trans('ListValuesRenameHint').'</div>';
+
+		foreach ($list_levels as $level_id => $cfg) {
+			print '<div class="binloc-card">';
+			print '<div class="binloc-card-title">'.dol_escape_htmltag($cfg->label);
+			if (!$cfg->active) {
+				print ' <span class="opacitymedium binloc-legacy">('.$langs->trans('Disabled').')</span>';
+			}
+			print '</div>';
+
+			print '<table class="noborder">';
+			foreach ($cfg->options as $opt) {
+				$refs = $optionObj->countReferences($opt->id);
+				print '<tr class="oddeven'.($opt->active ? '' : ' binloc-legacy').'">';
+				print '<td>';
+				print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'" style="display:inline">';
+				print '<input type="hidden" name="token" value="'.newToken().'">';
+				print '<input type="hidden" name="action" value="renameoption">';
+				print '<input type="hidden" name="fk_entrepot" value="'.$fk_entrepot.'">';
+				print '<input type="hidden" name="level_id" value="'.$level_id.'">';
+				print '<input type="hidden" name="option_id" value="'.$opt->id.'">';
+				print '<input type="text" name="option_value" class="flat width100" value="'.dol_escape_htmltag($opt->value).'">';
+				print ' <input type="submit" class="button smallpaddingimp" value="'.dol_escape_htmltag($langs->trans('Rename')).'">';
+				print '</form>';
+				print '</td>';
+				print '<td class="opacitymedium small">'.$langs->trans('UsedByNLocations', max(0, $refs)).'</td>';
+				print '<td class="center nowraponall">';
+				print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'" style="display:inline">';
+				print '<input type="hidden" name="token" value="'.newToken().'">';
+				print '<input type="hidden" name="action" value="toggleoption">';
+				print '<input type="hidden" name="fk_entrepot" value="'.$fk_entrepot.'">';
+				print '<input type="hidden" name="level_id" value="'.$level_id.'">';
+				print '<input type="hidden" name="option_id" value="'.$opt->id.'">';
+				print '<input type="hidden" name="active" value="'.($opt->active ? 0 : 1).'">';
+				print '<button type="submit" class="button smallpaddingimp">'.($opt->active ? $langs->trans('Disable') : $langs->trans('Enable')).'</button>';
+				print '</form> ';
+				if ($refs === 0) {
+					print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'" style="display:inline">';
+					print '<input type="hidden" name="token" value="'.newToken().'">';
+					print '<input type="hidden" name="action" value="deleteoption">';
+					print '<input type="hidden" name="fk_entrepot" value="'.$fk_entrepot.'">';
+					print '<input type="hidden" name="level_id" value="'.$level_id.'">';
+					print '<input type="hidden" name="option_id" value="'.$opt->id.'">';
+					print '<button type="submit" class="button smallpaddingimp">'.img_picto($langs->trans('Delete'), 'delete').'</button>';
+					print '</form>';
+				}
+				print '</td>';
+				print '</tr>';
+			}
+			print '</table>';
+
+			print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'" class="margintoponly">';
+			print '<input type="hidden" name="token" value="'.newToken().'">';
+			print '<input type="hidden" name="action" value="addoption">';
+			print '<input type="hidden" name="fk_entrepot" value="'.$fk_entrepot.'">';
+			print '<input type="hidden" name="level_id" value="'.$level_id.'">';
+			print '<input type="text" name="option_value" class="flat width100" placeholder="'.dol_escape_htmltag($langs->trans('NewValue')).'">';
+			print ' <input type="submit" class="button smallpaddingimp" value="'.dol_escape_htmltag($langs->trans('Add')).'">';
+			print '</form>';
+
+			print '</div>';
+		}
+	}
+
+	// ---- JS for dynamic level rows (visual numbering only — identity is the hidden rowid) ----
 	$level_hints_json = json_encode(array(
 		1 => $langs->trans('LevelHint1'),
 		2 => $langs->trans('LevelHint2'),
@@ -234,76 +385,50 @@ if ($fk_entrepot > 0) {
 		5 => $langs->trans('LevelHint5'),
 		6 => $langs->trans('LevelHint6'),
 	));
-	$js_max_msg     = dol_escape_js($langs->trans('MaxLevelsReached'));
-	$js_remove      = dol_escape_js($langs->trans('RemoveLevel'));
-	$js_delete_icon = dol_escape_js(img_picto($langs->trans('RemoveLevel'), 'delete'));
-	$js_type_text   = dol_escape_js($langs->trans('TypeText'));
-	$js_type_number = dol_escape_js($langs->trans('TypeNumber'));
-	$js_type_list   = dol_escape_js($langs->trans('TypeList'));
-	$js_lv_placeholder = dol_escape_js($langs->trans('ListValuesPlaceholder'));
 
 	print '<script>
-var binlocLevelHints = '.$level_hints_json.';
-var binlocDeleteIcon = "'.$js_delete_icon.'";
-var binlocRemoveTitle = "'.$js_remove.'";
+jQuery(function ($) {
+	var hints = '.$level_hints_json.';
+	var $table = $("#binloc-level-table tbody");
 
-function binlocRenumberLevels() {
-	var rows = document.querySelectorAll(".binloc-level-row");
-	rows.forEach(function(row, idx) {
-		var num = idx + 1;
-		row.querySelector(".binloc-level-num").textContent = num;
-		var input = row.querySelector("input[name=\'labels[]\']");
-		if (input && binlocLevelHints[num]) {
-			input.placeholder = binlocLevelHints[num];
-		}
+	function renumber() {
+		$table.find(".binloc-level-row").each(function (idx) {
+			$(this).find(".binloc-level-num").text(idx + 1);
+			var $label = $(this).find("input[name=\'labels[]\']");
+			if (!$label.val() && hints[idx + 1]) { $label.attr("placeholder", hints[idx + 1]); }
+		});
+	}
+
+	$("#binloc-add-level").on("click", function (e) {
+		e.preventDefault();
+		var tpl = document.getElementById("binloc-level-row-template");
+		$table.append($(tpl.content.firstElementChild).clone());
+		renumber();
+		$table.find(".binloc-level-row:last input[name=\'labels[]\']").focus();
 	});
-	var addBtn = document.getElementById("binloc-add-level");
-	if (addBtn) {
-		addBtn.style.display = (rows.length >= 6) ? "none" : "";
-	}
-}
 
-function binlocOnTypeChange(selectEl) {
-	var row = selectEl.closest("tr");
-	if (!row) return;
-	var lvInput = row.querySelector(".binloc-listvalues-input");
-	if (!lvInput) return;
-	lvInput.style.display = (selectEl.value === "list") ? "" : "none";
-}
+	$table.on("click", ".binloc-remove-level", function (e) {
+		e.preventDefault();
+		$(this).closest("tr").remove();
+		renumber();
+	});
 
-function binlocAddLevel() {
-	var rows = document.querySelectorAll(".binloc-level-row");
-	if (rows.length >= 6) {
-		alert("'.$js_max_msg.'");
-		return;
-	}
-	var num = rows.length + 1;
-	var hint = binlocLevelHints[num] || "";
-	var tr = document.createElement("tr");
-	tr.className = "oddeven binloc-level-row";
-	tr.innerHTML = "<td class=\"center opacitymedium\"><span class=\"binloc-level-num\">" + num + "</span></td>"
-		+ "<td><input type=\"text\" name=\"labels[]\" class=\"flat minwidth150\" value=\"\" placeholder=\"" + hint + "\"></td>"
-		+ "<td><select name=\"datatypes[]\" class=\"flat binloc-type-select\" onchange=\"binlocOnTypeChange(this)\">"
-		+ "<option value=\"text\">'.$js_type_text.'</option>"
-		+ "<option value=\"number\">'.$js_type_number.'</option>"
-		+ "<option value=\"list\">'.$js_type_list.'</option>"
-		+ "</select></td>"
-		+ "<td><input type=\"text\" name=\"list_values[]\" class=\"flat centpercent binloc-listvalues-input\" value=\"\" placeholder=\"'.$js_lv_placeholder.'\" style=\"display:none\"></td>"
-		+ "<td class=\"center\"><a href=\"#\" class=\"binloc-remove-level\" onclick=\"binlocRemoveLevel(this); return false;\" title=\"" + binlocRemoveTitle + "\">" + binlocDeleteIcon + "</a></td>";
-	document.getElementById("binloc-level-table").querySelector("tbody, table").appendChild(tr);
-	binlocRenumberLevels();
-	tr.querySelector("input").focus();
-}
+	$table.on("click", ".binloc-move-up", function (e) {
+		e.preventDefault();
+		var $row = $(this).closest("tr");
+		var $prev = $row.prevAll(".binloc-level-row").first();
+		if ($prev.length) { $row.insertBefore($prev); renumber(); }
+	});
 
-function binlocRemoveLevel(el) {
-	var row = el.closest("tr");
-	if (row) {
-		row.remove();
-		binlocRenumberLevels();
-	}
-}
+	$table.on("click", ".binloc-move-down", function (e) {
+		e.preventDefault();
+		var $row = $(this).closest("tr");
+		var $next = $row.nextAll(".binloc-level-row").first();
+		if ($next.length) { $row.insertAfter($next); renumber(); }
+	});
 
-binlocRenumberLevels();
+	renumber();
+});
 </script>';
 }
 

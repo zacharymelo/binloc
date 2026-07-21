@@ -4,7 +4,7 @@
 /**
  * \file    core/triggers/interface_99_modBinloc_BinlocTrigger.class.php
  * \ingroup binloc
- * \brief   Trigger for Binloc — handles STOCK_MOVEMENT to clear locations
+ * \brief   Trigger for Binloc — clears locations on stock movements and lot deletion
  */
 
 require_once DOL_DOCUMENT_ROOT.'/core/triggers/dolibarrtriggers.class.php';
@@ -12,7 +12,7 @@ require_once DOL_DOCUMENT_ROOT.'/core/triggers/dolibarrtriggers.class.php';
 /**
  * Class InterfaceBinlocTrigger
  *
- * Listens for STOCK_MOVEMENT events.
+ * Listens for STOCK_MOVEMENT and PRODUCTLOT_DELETE events.
  *
  * Rules:
  * - For serialized products (movement has a batch): always clear the lot's location
@@ -20,7 +20,10 @@ require_once DOL_DOCUMENT_ROOT.'/core/triggers/dolibarrtriggers.class.php';
  *   A serial physically exists in exactly one place, so moving it elsewhere voids
  *   its prior location record.
  * - For non-serialized: only clear when BINLOC_CLEAR_ON_ZERO_STOCK is enabled and
- *   the product's stock in the warehouse has dropped to zero.
+ *   the product's stock in the warehouse has dropped to zero. Lot rows are left
+ *   alone by this path.
+ * - PRODUCTLOT_DELETE: remove the lot's location rows. There is no DB cascade for
+ *   this in v2 — fk_product_lot uses 0 as "no lot", which precludes a lot FK.
  */
 class InterfaceBinlocTrigger extends DolibarrTriggers
 {
@@ -35,8 +38,8 @@ class InterfaceBinlocTrigger extends DolibarrTriggers
 
 		$this->name        = preg_replace('/^Interface/i', '', get_class($this));
 		$this->family      = 'stock';
-		$this->description = 'Binloc trigger — clears bin locations on stock movements';
-		$this->version     = '1.0.0';
+		$this->description = 'Binloc trigger — clears bin locations on stock movements and lot deletion';
+		$this->version     = '2.0.0';
 		$this->picto       = 'stock';
 	}
 
@@ -52,11 +55,21 @@ class InterfaceBinlocTrigger extends DolibarrTriggers
 	 */
 	public function runTrigger($action, $object, User $user, Translate $langs, Conf $conf)
 	{
-		if ($action !== 'STOCK_MOVEMENT') {
+		if (!isModEnabled('binloc')) {
 			return 0;
 		}
 
-		if (!isModEnabled('binloc')) {
+		if ($action === 'PRODUCTLOT_DELETE') {
+			$lot_id = isset($object->id) ? (int) $object->id : 0;
+			if ($lot_id > 0) {
+				dol_include_once('/binloc/class/binlocproductlocation.class.php');
+				$loc = new BinlocProductLocation($this->db);
+				$loc->deleteByLot($lot_id);
+			}
+			return 0;
+		}
+
+		if ($action !== 'STOCK_MOVEMENT') {
 			return 0;
 		}
 

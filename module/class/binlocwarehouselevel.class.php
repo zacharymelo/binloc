@@ -12,7 +12,10 @@ require_once DOL_DOCUMENT_ROOT.'/core/class/commonobject.class.php';
 /**
  * Class BinlocWarehouseLevel
  *
- * Manages per-warehouse level definitions (e.g. Level 1 = "Row", Level 2 = "Bay").
+ * Manages per-warehouse level definitions (e.g. "Row", "Bay", "Shelf").
+ * Levels have stable identity (rowid) referenced by location values; display
+ * order is the `position` column. Allowed values for datatype='list' live in
+ * llx_binloc_level_options (see BinlocLevelOption).
  */
 class BinlocWarehouseLevel extends CommonObject
 {
@@ -25,17 +28,14 @@ class BinlocWarehouseLevel extends CommonObject
 	/** @var int */
 	public $fk_entrepot;
 
-	/** @var int */
-	public $level_num;
-
 	/** @var string */
 	public $label;
 
 	/** @var string Input type: 'text' | 'number' | 'list' */
 	public $datatype = 'text';
 
-	/** @var string Comma-separated allowed values for datatype='list' */
-	public $list_values;
+	/** @var int Display order */
+	public $position = 0;
 
 	/** @var int */
 	public $active = 1;
@@ -60,7 +60,7 @@ class BinlocWarehouseLevel extends CommonObject
 	 * Create a level record
 	 *
 	 * @param  User $user User performing action
-	 * @return int        >0 if OK, <0 if KO
+	 * @return int        >0 if OK (rowid), <0 if KO
 	 */
 	public function create($user)
 	{
@@ -69,14 +69,14 @@ class BinlocWarehouseLevel extends CommonObject
 		$datatype = in_array($this->datatype, array('text', 'number', 'list'), true) ? $this->datatype : 'text';
 
 		$sql = "INSERT INTO ".MAIN_DB_PREFIX.$this->table_element." (";
-		$sql .= "entity, fk_entrepot, level_num, label, datatype, list_values, active, date_creation, fk_user_creat";
+		$sql .= "entity, fk_entrepot, level_num, label, datatype, position, active, date_creation, fk_user_creat";
 		$sql .= ") VALUES (";
 		$sql .= (int) getEntity('stock');
 		$sql .= ", ".(int) $this->fk_entrepot;
-		$sql .= ", ".(int) $this->level_num;
+		$sql .= ", ".(int) $this->position; // level_num kept informational only
 		$sql .= ", '".$this->db->escape($this->label)."'";
 		$sql .= ", '".$this->db->escape($datatype)."'";
-		$sql .= ", ".($this->list_values ? "'".$this->db->escape($this->list_values)."'" : "NULL");
+		$sql .= ", ".(int) $this->position;
 		$sql .= ", ".(int) $this->active;
 		$sql .= ", '".$this->db->idate($now)."'";
 		$sql .= ", ".(int) $user->id;
@@ -97,87 +97,117 @@ class BinlocWarehouseLevel extends CommonObject
 	/**
 	 * Fetch all level definitions for a warehouse
 	 *
-	 * Returns a map keyed by level_num where each value is an stdClass with:
-	 *   - label       (string)
-	 *   - datatype    ('text' | 'number' | 'list')
-	 *   - list_values (string|null, raw comma-separated)
-	 *   - options     (array, parsed from list_values, empty if not list type)
+	 * Returns a map keyed by level rowid, ordered by position, where each value
+	 * is an stdClass with:
+	 *   - id       (int, level rowid)
+	 *   - label    (string)
+	 *   - datatype ('text' | 'number' | 'list')
+	 *   - position (int)
+	 *   - active   (int)
+	 *   - options  (array of stdClass {id, value, position, active}, ALL options
+	 *               including inactive ones — renderers decide what to show)
 	 *
-	 * For backward compatibility with older code that treated the returned
-	 * value as `label`, callers should reference `->label` explicitly.
-	 *
-	 * @param  int   $fk_entrepot Warehouse ID
-	 * @return array              level_num => stdClass map, or empty array
+	 * @param  int  $fk_entrepot      Warehouse ID
+	 * @param  bool $include_inactive Include deactivated levels
+	 * @return array                  rowid => stdClass map, or empty array
 	 */
-	public function fetchByWarehouse($fk_entrepot)
+	public function fetchByWarehouse($fk_entrepot, $include_inactive = false)
 	{
-		$levels = array();
+		$result = $this->fetchByWarehouses(array((int) $fk_entrepot), $include_inactive);
+		return isset($result[(int) $fk_entrepot]) ? $result[(int) $fk_entrepot] : array();
+	}
 
-		$sql = "SELECT level_num, label, datatype, list_values FROM ".MAIN_DB_PREFIX.$this->table_element;
-		$sql .= " WHERE fk_entrepot = ".(int) $fk_entrepot;
-		$sql .= " AND entity IN (".getEntity('stock').")";
-		$sql .= " AND active = 1";
-		$sql .= " ORDER BY level_num ASC";
+	/**
+	 * Fetch level definitions for several warehouses in one query
+	 *
+	 * @param  int[] $fk_entrepots     Warehouse IDs
+	 * @param  bool  $include_inactive Include deactivated levels
+	 * @return array                   fk_entrepot => (rowid => stdClass) map
+	 */
+	public function fetchByWarehouses($fk_entrepots, $include_inactive = false)
+	{
+		$out = array();
+		$ids = array_filter(array_map('intval', (array) $fk_entrepots));
+		if (empty($ids)) {
+			return $out;
+		}
+		foreach ($ids as $id) {
+			$out[$id] = array();
+		}
+
+		$sql = "SELECT w.rowid, w.fk_entrepot, w.label, w.datatype, w.position, w.active,";
+		$sql .= " o.rowid as opt_id, o.value as opt_value, o.position as opt_position, o.active as opt_active";
+		$sql .= " FROM ".MAIN_DB_PREFIX.$this->table_element." as w";
+		$sql .= " LEFT JOIN ".MAIN_DB_PREFIX."binloc_level_options as o ON o.fk_level = w.rowid";
+		$sql .= " WHERE w.fk_entrepot IN (".implode(',', $ids).")";
+		$sql .= " AND w.entity IN (".getEntity('stock').")";
+		if (!$include_inactive) {
+			$sql .= " AND w.active = 1";
+		}
+		$sql .= " ORDER BY w.position ASC, w.rowid ASC, o.position ASC, o.rowid ASC";
 
 		$resql = $this->db->query($sql);
 		if (!$resql) {
 			$this->error = $this->db->lasterror();
-			return $levels;
+			return $out;
 		}
 
 		while ($obj = $this->db->fetch_object($resql)) {
-			$cfg = new stdClass();
-			$cfg->label       = $obj->label;
-			$cfg->datatype    = in_array($obj->datatype, array('text', 'number', 'list'), true) ? $obj->datatype : 'text';
-			$cfg->list_values = $obj->list_values;
-			$cfg->options     = array();
-			if ($cfg->datatype === 'list' && !empty($obj->list_values)) {
-				$parts = explode(',', $obj->list_values);
-				foreach ($parts as $p) {
-					$p = trim($p);
-					if ($p !== '') {
-						$cfg->options[] = $p;
-					}
-				}
+			$wh = (int) $obj->fk_entrepot;
+			$lid = (int) $obj->rowid;
+			if (!isset($out[$wh][$lid])) {
+				$cfg = new stdClass();
+				$cfg->id       = $lid;
+				$cfg->label    = $obj->label;
+				$cfg->datatype = in_array($obj->datatype, array('text', 'number', 'list'), true) ? $obj->datatype : 'text';
+				$cfg->position = (int) $obj->position;
+				$cfg->active   = (int) $obj->active;
+				$cfg->options  = array();
+				$out[$wh][$lid] = $cfg;
 			}
-			$levels[(int) $obj->level_num] = $cfg;
+			if ($obj->opt_id) {
+				$opt = new stdClass();
+				$opt->id       = (int) $obj->opt_id;
+				$opt->value    = $obj->opt_value;
+				$opt->position = (int) $obj->opt_position;
+				$opt->active   = (int) $obj->opt_active;
+				$out[$wh][$lid]->options[] = $opt;
+			}
 		}
 		$this->db->free($resql);
 
-		return $levels;
+		return $out;
 	}
 
 	/**
-	 * Fetch just the label map (backward-compatibility helper)
-	 *
-	 * Returns a simple level_num => label string map, dropping datatype info.
+	 * Fetch just the label map (compatibility helper)
 	 *
 	 * @param  int   $fk_entrepot Warehouse ID
-	 * @return array              level_num => label string map
+	 * @return array              level rowid => label string map, position order
 	 */
 	public function fetchLabelsByWarehouse($fk_entrepot)
 	{
 		$labels = array();
-		foreach ($this->fetchByWarehouse($fk_entrepot) as $num => $cfg) {
-			$labels[$num] = $cfg->label;
+		foreach ($this->fetchByWarehouse($fk_entrepot) as $id => $cfg) {
+			$labels[$id] = $cfg->label;
 		}
 		return $labels;
 	}
 
 	/**
-	 * Get the number of configured levels for a warehouse
+	 * Get the number of active levels for a warehouse
 	 *
 	 * @param  int $fk_entrepot Warehouse ID
-	 * @return int              Number of active levels (0-6)
+	 * @return int              Number of active levels
 	 */
 	public function getMaxLevel($fk_entrepot)
 	{
-		$levels = $this->fetchByWarehouse($fk_entrepot);
-		return count($levels);
+		return count($this->fetchByWarehouse($fk_entrepot));
 	}
 
 	/**
-	 * Delete all level definitions for a warehouse
+	 * Delete all level definitions for a warehouse (uninstall/purge only —
+	 * normal edits go through applyWarehouseLevels to preserve identity)
 	 *
 	 * @param  int $fk_entrepot Warehouse ID
 	 * @return int              >0 if OK, <0 if KO
@@ -198,52 +228,94 @@ class BinlocWarehouseLevel extends CommonObject
 	}
 
 	/**
-	 * Save a complete set of levels for a warehouse (delete + re-insert)
+	 * Apply a full set of levels for a warehouse, preserving identity.
 	 *
-	 * Accepts either:
-	 *   - A flat level_num => label string map (legacy), or
-	 *   - A level_num => array('label' => ..., 'datatype' => ..., 'list_values' => ...) map
+	 * Each row of $rows: array(
+	 *   'id'       => existing level rowid, or 0 for a new level,
+	 *   'label'    => string,
+	 *   'datatype' => 'text'|'number'|'list',
+	 *   'position' => int display order,
+	 * )
+	 * Existing levels missing from $rows are soft-deactivated when still
+	 * referenced by location values, hard-deleted otherwise. Options survive
+	 * because level rowids never change.
 	 *
 	 * @param  int   $fk_entrepot Warehouse ID
-	 * @param  array $levels      level_num => config array or label string
+	 * @param  array $rows        Level rows as described above
 	 * @param  User  $user        User performing action
 	 * @return int                >0 if OK, <0 if KO
 	 */
-	public function saveWarehouseLevels($fk_entrepot, $levels, $user)
+	public function applyWarehouseLevels($fk_entrepot, $rows, $user)
 	{
+		$existing = $this->fetchByWarehouse($fk_entrepot, true);
+
 		$this->db->begin();
 
-		$result = $this->deleteByWarehouse($fk_entrepot);
-		if ($result < 0) {
-			$this->db->rollback();
-			return -1;
-		}
-
-		foreach ($levels as $num => $cfg) {
-			if (is_array($cfg)) {
-				$label       = isset($cfg['label']) ? trim($cfg['label']) : '';
-				$datatype    = isset($cfg['datatype']) ? $cfg['datatype'] : 'text';
-				$list_values = isset($cfg['list_values']) ? trim($cfg['list_values']) : '';
-			} else {
-				$label       = trim((string) $cfg);
-				$datatype    = 'text';
-				$list_values = '';
-			}
+		$kept = array();
+		foreach ($rows as $row) {
+			$id       = isset($row['id']) ? (int) $row['id'] : 0;
+			$label    = isset($row['label']) ? trim($row['label']) : '';
+			$datatype = (isset($row['datatype']) && in_array($row['datatype'], array('text', 'number', 'list'), true)) ? $row['datatype'] : 'text';
+			$position = isset($row['position']) ? (int) $row['position'] : 0;
 
 			if ($label === '') {
 				continue;
 			}
 
-			$this->fk_entrepot = $fk_entrepot;
-			$this->level_num   = (int) $num;
-			$this->label       = $label;
-			$this->datatype    = in_array($datatype, array('text', 'number', 'list'), true) ? $datatype : 'text';
-			$this->list_values = ($this->datatype === 'list' && $list_values !== '') ? $list_values : null;
-			$this->active      = 1;
-			$this->id          = 0;
+			if ($id > 0 && isset($existing[$id])) {
+				$sql = "UPDATE ".MAIN_DB_PREFIX.$this->table_element." SET";
+				$sql .= " label = '".$this->db->escape($label)."'";
+				$sql .= ", datatype = '".$this->db->escape($datatype)."'";
+				$sql .= ", position = ".$position;
+				$sql .= ", level_num = ".$position;
+				$sql .= ", active = 1";
+				$sql .= ", fk_user_modif = ".(int) $user->id;
+				$sql .= " WHERE rowid = ".$id;
+				if (!$this->db->query($sql)) {
+					$this->error = $this->db->lasterror();
+					$this->db->rollback();
+					return -1;
+				}
+				$kept[$id] = true;
+			} else {
+				$this->fk_entrepot = $fk_entrepot;
+				$this->label       = $label;
+				$this->datatype    = $datatype;
+				$this->position    = $position;
+				$this->active      = 1;
+				$this->id          = 0;
+				$result = $this->create($user);
+				if ($result < 0) {
+					$this->db->rollback();
+					return -1;
+				}
+				$kept[$result] = true;
+			}
+		}
 
-			$result = $this->create($user);
-			if ($result < 0) {
+		// Levels removed from the submitted set: deactivate when referenced,
+		// delete when not (options cascade with the level)
+		foreach ($existing as $id => $cfg) {
+			if (isset($kept[$id])) {
+				continue;
+			}
+			$sql = "SELECT COUNT(*) as nb FROM ".MAIN_DB_PREFIX."binloc_location_value WHERE fk_level = ".(int) $id;
+			$resql = $this->db->query($sql);
+			if (!$resql) {
+				$this->error = $this->db->lasterror();
+				$this->db->rollback();
+				return -1;
+			}
+			$obj = $this->db->fetch_object($resql);
+			$this->db->free($resql);
+
+			if ((int) $obj->nb > 0) {
+				$sql = "UPDATE ".MAIN_DB_PREFIX.$this->table_element." SET active = 0, fk_user_modif = ".(int) $user->id." WHERE rowid = ".(int) $id;
+			} else {
+				$sql = "DELETE FROM ".MAIN_DB_PREFIX.$this->table_element." WHERE rowid = ".(int) $id;
+			}
+			if (!$this->db->query($sql)) {
+				$this->error = $this->db->lasterror();
 				$this->db->rollback();
 				return -1;
 			}
@@ -254,7 +326,9 @@ class BinlocWarehouseLevel extends CommonObject
 	}
 
 	/**
-	 * Copy level configuration from one warehouse to another
+	 * Copy level configuration (including list options) to another warehouse.
+	 * Refuses when the target already has levels, so existing references are
+	 * never silently re-labeled.
 	 *
 	 * @param  int  $source_fk_entrepot Source warehouse ID
 	 * @param  int  $target_fk_entrepot Target warehouse ID
@@ -269,17 +343,43 @@ class BinlocWarehouseLevel extends CommonObject
 			return -1;
 		}
 
-		// Convert stdClass objects from fetchByWarehouse into the array shape
-		// expected by saveWarehouseLevels
-		$payload = array();
-		foreach ($source_levels as $num => $cfg) {
-			$payload[$num] = array(
-				'label'       => $cfg->label,
-				'datatype'    => $cfg->datatype,
-				'list_values' => $cfg->list_values,
-			);
+		if (count($this->fetchByWarehouse($target_fk_entrepot, true)) > 0) {
+			$this->error = 'TargetWarehouseHasLevels';
+			return -2;
 		}
 
-		return $this->saveWarehouseLevels($target_fk_entrepot, $payload, $user);
+		dol_include_once('/binloc/class/binloclevaloption.class.php');
+		$optionHandler = new BinlocLevelOption($this->db);
+
+		$this->db->begin();
+
+		foreach ($source_levels as $cfg) {
+			$this->fk_entrepot = $target_fk_entrepot;
+			$this->label       = $cfg->label;
+			$this->datatype    = $cfg->datatype;
+			$this->position    = $cfg->position;
+			$this->active      = 1;
+			$this->id          = 0;
+			$new_level_id = $this->create($user);
+			if ($new_level_id < 0) {
+				$this->db->rollback();
+				return -1;
+			}
+
+			foreach ($cfg->options as $opt) {
+				if (!$opt->active) {
+					continue;
+				}
+				$result = $optionHandler->create($new_level_id, $opt->value, $opt->position, $user);
+				if ($result < 0) {
+					$this->error = $optionHandler->error;
+					$this->db->rollback();
+					return -1;
+				}
+			}
+		}
+
+		$this->db->commit();
+		return 1;
 	}
 }

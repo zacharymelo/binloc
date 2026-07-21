@@ -1,0 +1,93 @@
+/* Copyright (C) 2026 Zachary Melo */
+/* Binloc — theme-aware styles only (Dolibarr CSS variables, no hardcoded hex) */
+
+.binloc-migration-banner {
+	padding: 8px 12px;
+	margin-bottom: 8px;
+	border-radius: 4px;
+}
+
+.binloc-migration-report {
+	margin: 4px 0 8px;
+	font-size: 0.92em;
+}
+
+.binloc-card {
+	border: 1px solid var(--bordercolor, rgba(0, 0, 0, 0.15));
+	border-radius: 4px;
+	padding: 10px 12px;
+	margin-bottom: 8px;
+	background: var(--colorbacklineimpair2, transparent);
+}
+
+.binloc-card-title {
+	font-weight: bold;
+	margin-bottom: 4px;
+}
+
+.binloc-inline-form {
+	margin-top: 4px;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+	align-items: center;
+}
+
+.binloc-inline-form .binloc-level-input {
+	max-width: 10em;
+}
+
+.binloc-loc-display {
+	white-space: normal;
+}
+
+.binloc-unassigned {
+	border-left: 3px solid var(--colorbackhmenu1, currentColor);
+	padding-left: 8px;
+	opacity: 0.95;
+}
+
+.binloc-batch-panel {
+	border: 1px dashed var(--bordercolor, rgba(0, 0, 0, 0.25));
+	border-radius: 4px;
+	padding: 10px 12px;
+	margin-top: 10px;
+	display: none;
+}
+
+.binloc-batch-panel.active {
+	display: block;
+}
+
+.binloc-filldown {
+	cursor: pointer;
+	opacity: 0.6;
+}
+
+.binloc-filldown:hover {
+	opacity: 1;
+}
+
+.binloc-level-row-drag {
+	cursor: grab;
+}
+
+.binloc-legacy {
+	font-style: italic;
+	opacity: 0.75;
+}
+
+.binloc-cleared {
+	text-decoration: line-through;
+	opacity: 0.55;
+}
+
+.binloc-row-status-ok {
+	outline: 2px solid var(--colortextlinkaction, transparent);
+	outline-offset: -2px;
+}
+
+.binloc-row-status-error {
+	outline: 2px solid var(--colorbackredbutton, currentColor);
+	outline-offset: -2px;
+}

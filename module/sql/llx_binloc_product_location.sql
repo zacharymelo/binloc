@@ -1,7 +1,12 @@
 -- Copyright (C) 2026 Zachary Melo
 --
--- Binloc: product location assignments (one row per product per warehouse,
--- or per product-lot per warehouse for serialized/batch products)
+-- Binloc: product location assignment header (one row per product per warehouse,
+-- or per product-lot per warehouse for serialized/batch products).
+-- Level values live in llx_binloc_location_value (v2 normalized schema).
+--
+-- fk_product_lot uses 0 (not NULL) to mean "no lot" so the unique index below
+-- can enforce one row per (product, warehouse, lot) — MySQL treats NULL as
+-- distinct in unique indexes, which would defeat the constraint.
 --
 
 CREATE TABLE IF NOT EXISTS llx_binloc_product_location (
@@ -9,13 +14,7 @@ CREATE TABLE IF NOT EXISTS llx_binloc_product_location (
 	entity          INTEGER         NOT NULL DEFAULT 1,
 	fk_product      INTEGER         NOT NULL,
 	fk_entrepot     INTEGER         NOT NULL,
-	fk_product_lot  INTEGER         DEFAULT NULL,
-	level1_value    VARCHAR(64)     DEFAULT NULL,
-	level2_value    VARCHAR(64)     DEFAULT NULL,
-	level3_value    VARCHAR(64)     DEFAULT NULL,
-	level4_value    VARCHAR(64)     DEFAULT NULL,
-	level5_value    VARCHAR(64)     DEFAULT NULL,
-	level6_value    VARCHAR(64)     DEFAULT NULL,
+	fk_product_lot  INTEGER         NOT NULL DEFAULT 0,
 	note            VARCHAR(255)    DEFAULT NULL,
 	date_creation   DATETIME        NOT NULL,
 	tms             TIMESTAMP       DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

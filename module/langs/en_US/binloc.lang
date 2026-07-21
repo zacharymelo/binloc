@@ -71,8 +71,16 @@ TypeText = Text
 TypeNumber = Number
 TypeList = Dropdown
 ListValues = Allowed Values
-ListValuesHint = comma-separated, used only for Dropdown type
-ListValuesPlaceholder = e.g. A, B, C, D
+ListValuesRenameHint = Renaming a value here updates every existing bin location that uses it. Values in use cannot be deleted — disable them instead to hide them from new input while keeping existing assignments readable.
+OptionAdded = Value added
+OptionRenamed = Value renamed — all assignments updated
+OptionDeleted = Value deleted
+OptionAlreadyExists = This value already exists for this level
+OptionInUseDeactivateInstead = This value is used by %s location(s) and cannot be deleted — disable it instead
+InvalidOptionValue = Invalid value (empty or longer than 64 characters)
+UsedByNLocations = used by %s location(s)
+NewValue = New value
+TargetWarehouseHasLevels = The target warehouse already has levels configured — remove them first to copy
 
 #
 # Reception tab
@@ -98,6 +106,8 @@ BulkSaveAll = Save All
 BulkSaved = %s location(s) saved
 BulkNothingChanged = No changes to save
 SearchProduct = Search by ref or label
+ConfirmBatchSet = Set %fields% on %count% row(s)? Fields you left empty are not changed.
+LegacyValue = legacy
 
 #
 # Permissions
@@ -105,6 +115,18 @@ SearchProduct = Search by ref or label
 Permission530101 = Read bin locations
 Permission530102 = Create/modify bin locations
 Permission530103 = Configure warehouse levels
+
+#
+# Migration (v2 schema)
+#
+BinlocDbUpToDate = Database schema is up to date (%s)
+BinlocMigrationPending = A database migration is pending (%s → %s). Existing bin location data will be preserved.
+BinlocMigrationFailedAt = Database migration failed at step %s. Legacy data is untouched — fix the reported problem and retry.
+BinlocMigrationRun = Run migration
+BinlocMigrationRetry = Retry migration
+BinlocMigrationDone = Migration completed successfully
+BinlocMigrationFailed = Migration failed — see the banner for details
+BinlocMigrationReport = Migration report
 
 #
 # Settings

@@ -4,13 +4,16 @@
 /**
  * \file    class/actions_binloc.class.php
  * \ingroup binloc
- * \brief   Binloc hooks — warehouse card, reception card, and dispatch integrations
+ * \brief   Binloc hooks — warehouse card, lot/serial card and dispatch integrations
  */
 
 /**
  * Class ActionsBinloc
  *
- * Hook contexts: warehousecard, productcard, receptioncard, ordersupplierdispatch
+ * Hook contexts: warehousecard, productlotcard, ordersupplierdispatch.
+ * The lot card panel is a proper formObjectOptions field row with AJAX inline
+ * editing — no DOM surgery on core markup. All mutations go through the
+ * Binloc AJAX endpoints.
  */
 class ActionsBinloc
 {
@@ -33,15 +36,11 @@ class ActionsBinloc
 		$this->db = $db;
 	}
 
-	// =========================================================================
-	// warehousecard — show bin location count on warehouse card
-	// =========================================================================
-
 	/**
-	 * Hook: formObjectOptions — inject location summary on warehouse card
+	 * Hook: formObjectOptions — warehouse card summary row / lot card location row
 	 *
 	 * @param  array   $parameters Hook parameters
-	 * @param  object  $object     The Entrepot object
+	 * @param  object  $object     The current card object
 	 * @param  string  $action     Current action
 	 * @return int                 0 = continue hooks
 	 */
@@ -52,9 +51,16 @@ class ActionsBinloc
 		if (in_array('warehousecard', $contexts)) {
 			return $this->_binloc_warehousecard_options($object);
 		}
+		if (in_array('productlotcard', $contexts)) {
+			return $this->_binloc_productlotcard_options($object);
+		}
 
 		return 0;
 	}
+
+	// =========================================================================
+	// warehousecard — show bin location count on warehouse card
+	// =========================================================================
 
 	/**
 	 * Inject the bin location summary row on the warehouse card
@@ -71,7 +77,6 @@ class ActionsBinloc
 		}
 
 		dol_include_once('/binloc/lib/binloc.lib.php');
-		dol_include_once('/binloc/class/binlocwarehouselevel.class.php');
 		dol_include_once('/binloc/class/binlocproductlocation.class.php');
 		$langs->load('binloc@binloc');
 
@@ -99,45 +104,164 @@ class ActionsBinloc
 	}
 
 	// =========================================================================
-	// receptioncard — tab-based approach, see tab_reception_locations.php
+	// productlotcard — bin location field row with AJAX inline edit
 	// =========================================================================
 
 	/**
-	 * Unused — reception bin placement moved to a dedicated tab that reuses
-	 * the bulk assign UX. Kept as a stub so module_parts registration remains
-	 * compatible with older installs.
+	 * Inject the bin location row on the lot/serial card
 	 *
-	 * @param  object $object The Reception object
+	 * @param  object $object The Productlot object
 	 * @return int            0
 	 */
-	private function _binloc_receptioncard_inject($object)
+	private function _binloc_productlotcard_options($object)
 	{
+		global $langs, $user;
+
+		if (empty($object->id) || $object->id <= 0) {
+			return 0;
+		}
+
+		dol_include_once('/binloc/lib/binloc.lib.php');
+		dol_include_once('/binloc/class/binlocwarehouselevel.class.php');
+		dol_include_once('/binloc/class/binlocproductlocation.class.php');
+		$langs->load('binloc@binloc');
+
+		$can_write = $user->hasRight('binloc', 'write');
+
+		$locObj = new BinlocProductLocation($this->db);
+		$has_location = ($locObj->fetchAnyByLot($object->id) > 0);
+
+		$formatted = '';
+		$warehouse_ref = '';
+		if ($has_location) {
+			$levels = binloc_get_warehouse_levels($this->db, $locObj->fk_entrepot);
+			$formatted = $locObj->getFormattedLocation($levels);
+
+			$resql = $this->db->query("SELECT ref FROM ".MAIN_DB_PREFIX."entrepot WHERE rowid = ".(int) $locObj->fk_entrepot);
+			if ($resql) {
+				$wh = $this->db->fetch_object($resql);
+				$warehouse_ref = $wh ? $wh->ref : '';
+				$this->db->free($resql);
+			}
+		}
+
+		print '<tr><td>'.$langs->trans('BinLocation').'</td>';
+		print '<td>';
+		binloc_print_assets();
+
+		print '<span id="binloc-lot-panel" data-fk-product="'.(int) $object->fk_product.'"';
+		print ' data-fk-entrepot="'.(int) ($has_location ? $locObj->fk_entrepot : 0).'"';
+		print ' data-loc-id="'.(int) ($has_location ? $locObj->id : 0).'"';
+		print ' data-fk-lot="'.(int) $object->id.'"';
+		print ' data-note="'.dol_escape_htmltag((string) ($has_location ? $locObj->note : '')).'">';
+
+		print '<span class="binloc-loc-cell">';
+		print '<span class="binloc-loc-display">';
+		if ($has_location) {
+			$wh_url = dol_buildpath('/product/stock/card.php?id='.$locObj->fk_entrepot, 1);
+			print '<strong><a href="'.$wh_url.'">'.dol_escape_htmltag($warehouse_ref).'</a></strong> &mdash; '.dol_escape_htmltag($formatted);
+			if ($locObj->note) {
+				print ' <span class="opacitymedium small">('.dol_escape_htmltag($locObj->note).')</span>';
+			}
+		} else {
+			print '<span class="opacitymedium">'.$langs->trans('NoBinLocationAssigned').'</span>';
+		}
+		print '</span>';
+		print '</span> ';
+
+		if ($can_write) {
+			if ($has_location) {
+				print '<a href="#" class="binloc-edit-btn">'.img_picto($langs->trans('EditLocation'), 'edit').'</a> ';
+				print '<a href="#" class="binloc-delete-btn">'.img_picto($langs->trans('RemoveLocation'), 'delete').'</a>';
+			} else {
+				// No location yet: warehouse select + levels appear on demand
+				print '<span id="binloc-lot-add" style="display:none">';
+				print binloc_render_warehouse_select($this->db, 'binloc_lot_wh', 0, 'flat minwidth150', 'id="binloc-lot-wh"');
+				print ' <span id="binloc-lot-levels"></span>';
+				print ' <button type="button" class="button smallpaddingimp" id="binloc-lot-save">'.$langs->trans('Save').'</button>';
+				print '</span>';
+				print '<a href="#" class="button smallpaddingimp" id="binloc-lot-add-btn">'.img_picto('', 'add', 'class="pictofixedwidth"').$langs->trans('AddLocation').'</a>';
+			}
+		}
+		print '</span>';
+		print '</td></tr>';
+
+		if ($can_write) {
+			print '<script>
+jQuery(function ($) {
+	Binloc.config.msgSaved = "'.dol_escape_js($langs->trans('LocationSaved')).'";
+	Binloc.config.msgRemoved = "'.dol_escape_js($langs->trans('LocationRemoved')).'";
+	var $panel = $("#binloc-lot-panel");
+	Binloc.bindInlineEdit($panel.parent(), {
+		save: "'.dol_escape_js($langs->trans('Save')).'",
+		cancel: "'.dol_escape_js($langs->trans('Cancel')).'",
+		notePlaceholder: "'.dol_escape_js($langs->trans('LocationNote')).'",
+		confirmDelete: "'.dol_escape_js($langs->trans('ConfirmRemoveLocation', '')).'"
+	});
+	$panel.on("binloc:saved", function () { window.location.reload(); });
+	$panel.parent().on("click", ".binloc-delete-btn", function () {
+		setTimeout(function () { window.location.reload(); }, 400);
+	});
+
+	$("#binloc-lot-add-btn").on("click", function (e) {
+		e.preventDefault();
+		$(this).hide();
+		$("#binloc-lot-add").show();
+	});
+	$("#binloc-lot-wh").on("change", function () {
+		Binloc.swapLevelInputs($("#binloc-lot-levels"), $(this).val(), "lot_", 0);
+	});
+	$("#binloc-lot-save").on("click", function () {
+		var whId = $("#binloc-lot-wh").val();
+		if (!whId) { return; }
+		var params = $.extend({
+			fk_product: $panel.data("fk-product"),
+			fk_entrepot: whId,
+			fk_product_lot: $panel.data("fk-lot")
+		}, Binloc.collectLevelValues($("#binloc-lot-levels"), "lot_"));
+		Binloc.saveLocation(params, function () { window.location.reload(); });
+	});
+});
+</script>';
+		}
+
 		return 0;
 	}
+
+	// =========================================================================
+	// ordersupplierdispatch — bin location column on the dispatch page
+	// =========================================================================
 
 	/**
-	 * Unused — no-op stub for the formAddObjectLine hook slot.
+	 * Hook: printFieldListTitle — add "Bin Location" column header on dispatch page
 	 *
 	 * @param  array   $parameters Hook parameters
-	 * @param  object  $object     Reception object
+	 * @param  object  $object     Object
 	 * @param  string  $action     Current action
-	 * @return int                 0
+	 * @return int
 	 */
-	public function formAddObjectLine($parameters, &$object, &$action)
+	public function printFieldListTitle($parameters, &$object, &$action)
 	{
+		global $langs;
+
+		$contexts = isset($parameters['currentcontext']) ? explode(':', $parameters['currentcontext']) : array();
+		if (!in_array('ordersupplierdispatch', $contexts)) {
+			return 0;
+		}
+
+		$langs->load('binloc@binloc');
+		print '<td>'.$langs->trans('BinLocations').'</td>';
+
 		return 0;
 	}
-
-
-	// =========================================================================
-	// ordersupplierdispatch — same location hints on the dispatch page
-	// =========================================================================
 
 	/**
 	 * Hook: printFieldListValue — inject bin location column on dispatch page
 	 *
-	 * Adds a "Bin Location" column to the dispatch line table showing where
-	 * each product lives (or should go) in the selected warehouse.
+	 * Shows where each product lives (or should go) in the destination
+	 * warehouse. The destination is read from Dolibarr's dispatch form field
+	 * naming (entrepot + suffix); when that convention does not match, the
+	 * cell degrades to a dash instead of breaking the table.
 	 *
 	 * @param  array   $parameters Hook parameters (includes objp, suffix, i, j)
 	 * @param  object  $object     The Reception/SupplierOrder object
@@ -146,13 +270,12 @@ class ActionsBinloc
 	 */
 	public function printFieldListValue($parameters, &$object, &$action)
 	{
-		global $langs;
-
-		if (!in_array('ordersupplierdispatch', explode(':', $parameters['currentcontext']))) {
+		$contexts = isset($parameters['currentcontext']) ? explode(':', $parameters['currentcontext']) : array();
+		if (!in_array('ordersupplierdispatch', $contexts)) {
 			return 0;
 		}
 
-		// Only output on the first call per row (when j == 0 or first iteration)
+		// Only output on the first call per row so the column count stays aligned
 		if (isset($parameters['j']) && $parameters['j'] > 0) {
 			return 0;
 		}
@@ -164,7 +287,6 @@ class ActionsBinloc
 		}
 
 		dol_include_once('/binloc/lib/binloc.lib.php');
-		$langs->load('binloc@binloc');
 
 		$suffix = isset($parameters['suffix']) ? $parameters['suffix'] : '';
 		$fk_entrepot = GETPOSTINT('entrepot'.$suffix);
@@ -184,304 +306,6 @@ class ActionsBinloc
 			print '<span class="opacitymedium">&mdash;</span>';
 		}
 		print '</td>';
-
-		return 0;
-	}
-
-	// =========================================================================
-	// productlotcard — inline bin location display and edit on lot/serial card
-	// =========================================================================
-
-	/**
-	 * Hook: doActions — handle location save/delete on the lot card
-	 *
-	 * @param  array   $parameters Hook parameters
-	 * @param  object  $object     The Productlot object
-	 * @param  string  $action     Current action
-	 * @return int
-	 */
-	public function doActions($parameters, &$object, &$action)
-	{
-		global $user;
-
-		if (!in_array('productlotcard', explode(':', $parameters['currentcontext']))) {
-			return 0;
-		}
-
-		if (!$user->hasRight('binloc', 'write')) {
-			return 0;
-		}
-
-		dol_include_once('/binloc/class/binlocproductlocation.class.php');
-
-		if ($action === 'binlocsavelotloc') {
-			$loc_fk_entrepot = GETPOSTINT('binloc_fk_entrepot');
-			if ($loc_fk_entrepot > 0 && !empty($object->id)) {
-				$loc = new BinlocProductLocation($this->db);
-				$loc->fk_product     = $object->fk_product;
-				$loc->fk_entrepot    = $loc_fk_entrepot;
-				$loc->fk_product_lot = $object->id;
-				for ($i = 1; $i <= 6; $i++) {
-					$loc->{'level'.$i.'_value'} = GETPOST('binloc_level'.$i, 'alphanohtml');
-				}
-				$loc->note = GETPOST('binloc_note', 'alphanohtml');
-
-				$result = $loc->createOrUpdate($user);
-				if ($result > 0) {
-					setEventMessages($GLOBALS['langs']->trans('LocationSaved'), null, 'mesgs');
-				} else {
-					setEventMessages($loc->error, null, 'errors');
-				}
-			}
-			$action = '';
-		}
-
-		if ($action === 'binlocdeletelotloc') {
-			$loc_id = GETPOSTINT('binloc_loc_id');
-			if ($loc_id > 0) {
-				$loc = new BinlocProductLocation($this->db);
-				$loc->fetch($loc_id);
-				$result = $loc->delete($user);
-				if ($result > 0) {
-					setEventMessages($GLOBALS['langs']->trans('LocationRemoved'), null, 'mesgs');
-				} else {
-					setEventMessages($loc->error, null, 'errors');
-				}
-			}
-			$action = '';
-		}
-
-		return 0;
-	}
-
-	/**
-	 * Hook: addMoreActionsButtons — render bin location inline on the lot/serial card
-	 *
-	 * Shows the lot's bin location(s) as a compact panel between the card
-	 * and the action buttons. Includes inline edit and add capabilities.
-	 *
-	 * @param  array   $parameters Hook parameters
-	 * @param  object  $object     The Productlot object
-	 * @param  string  $action     Current action
-	 * @return int
-	 */
-	public function addMoreActionsButtons($parameters, &$object, &$action)
-	{
-		global $langs, $user, $db;
-
-		if (!in_array('productlotcard', explode(':', $parameters['currentcontext']))) {
-			return 0;
-		}
-		if (empty($object->id) || $object->id <= 0) {
-			return 0;
-		}
-
-		dol_include_once('/binloc/lib/binloc.lib.php');
-		dol_include_once('/binloc/class/binlocwarehouselevel.class.php');
-		dol_include_once('/binloc/class/binlocproductlocation.class.php');
-		$langs->load('binloc@binloc');
-
-		$levelObj = new BinlocWarehouseLevel($this->db);
-
-		// Fetch locations for this specific lot
-		$sql = "SELECT pl.rowid, pl.fk_entrepot, e.ref as warehouse_ref, e.lieu as warehouse_label,";
-		$sql .= " pl.level1_value, pl.level2_value, pl.level3_value,";
-		$sql .= " pl.level4_value, pl.level5_value, pl.level6_value,";
-		$sql .= " pl.note";
-		$sql .= " FROM ".MAIN_DB_PREFIX."binloc_product_location as pl";
-		$sql .= " LEFT JOIN ".MAIN_DB_PREFIX."entrepot as e ON e.rowid = pl.fk_entrepot";
-		$sql .= " WHERE pl.fk_product_lot = ".(int) $object->id;
-		$sql .= " AND pl.entity IN (".getEntity('stock').")";
-		$sql .= " ORDER BY e.ref ASC";
-
-		$resql = $this->db->query($sql);
-		$locations = array();
-		if ($resql) {
-			while ($obj = $this->db->fetch_object($resql)) {
-				$locations[] = $obj;
-			}
-			$this->db->free($resql);
-		}
-
-		$binloc_mode = GETPOST('binloc_mode', 'aZ09');
-		$edit_wh  = ($binloc_mode === 'edit') ? GETPOSTINT('binloc_edit_wh') : 0;
-		$add_mode = ($binloc_mode === 'add');
-
-		// ---- Render panel ----
-		print '</div>'; // Close the tabsAction div early so we render before action buttons
-
-		print '<div class="fichecenter" style="margin-bottom:12px;">';
-		print '<div class="underbanner clearboth">';
-		print '<strong>'.img_picto('', 'stock', 'class="pictofixedwidth"').$langs->trans('BinLocations').'</strong>';
-		print '</div>';
-
-		if (!empty($locations)) {
-			foreach ($locations as $loc) {
-				$wh_levels = $levelObj->fetchByWarehouse($loc->fk_entrepot);
-				$is_editing = ($edit_wh == $loc->fk_entrepot);
-				$wh_url = dol_buildpath('/product/stock/card.php?id='.$loc->fk_entrepot, 1);
-
-				print '<div style="padding:6px 8px; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center;">';
-
-				if ($is_editing && $user->hasRight('binloc', 'write')) {
-					// Edit form
-					print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'?id='.$object->id.'" style="display:flex; flex-wrap:wrap; gap:6px; align-items:end; flex:1;">';
-					print '<input type="hidden" name="token" value="'.newToken().'">';
-					print '<input type="hidden" name="action" value="binlocsavelotloc">';
-					print '<input type="hidden" name="binloc_fk_entrepot" value="'.$loc->fk_entrepot.'">';
-
-					print '<span><strong><a href="'.$wh_url.'">'.dol_escape_htmltag($loc->warehouse_ref).'</a></strong></span>';
-
-					foreach ($wh_levels as $num => $cfg) {
-						$val = $loc->{'level'.$num.'_value'};
-						print '<span>';
-						print '<span class="opacitymedium small">'.dol_escape_htmltag($cfg->label).':</span> ';
-						print binloc_render_level_input($cfg, 'binloc_level'.$num, $val, 'flat', 'style="width:70px;"');
-						print '</span>';
-					}
-					print '<span>';
-					print '<span class="opacitymedium small">'.$langs->trans('LocationNote').':</span> ';
-					print '<input type="text" name="binloc_note" class="flat" style="width:80px;" value="'.dol_escape_htmltag($loc->note).'">';
-					print '</span>';
-
-					print '<input type="submit" class="button smallpaddingimp" value="'.dol_escape_htmltag($langs->trans('Save')).'">';
-					print ' <a href="'.$_SERVER['PHP_SELF'].'?id='.$object->id.'" class="button smallpaddingimp">'.$langs->trans('Cancel').'</a>';
-					print '</form>';
-				} else {
-					// Display
-					print '<div>';
-					print '<strong><a href="'.$wh_url.'">'.dol_escape_htmltag($loc->warehouse_ref).'</a></strong>';
-					if ($loc->warehouse_label) {
-						print ' <span class="opacitymedium small">'.dol_escape_htmltag($loc->warehouse_label).'</span>';
-					}
-					print ' &mdash; ';
-
-					if (!empty($wh_levels)) {
-						$parts = array();
-						foreach ($wh_levels as $num => $cfg) {
-							$val = $loc->{'level'.$num.'_value'};
-							if ($val !== null && $val !== '') {
-								$parts[] = dol_escape_htmltag($cfg->label).': <strong>'.dol_escape_htmltag($val).'</strong>';
-							}
-						}
-						print implode(' / ', $parts);
-						if ($loc->note) {
-							print ' <span class="opacitymedium small">('.dol_escape_htmltag($loc->note).')</span>';
-						}
-					} else {
-						print '<span class="opacitymedium">'.$langs->trans('NoLevelsConfigured').'</span>';
-					}
-					print '</div>';
-
-					if ($user->hasRight('binloc', 'write')) {
-						print '<div class="nowraponall">';
-						print '<a href="'.$_SERVER['PHP_SELF'].'?id='.$object->id.'&binloc_mode=edit&binloc_edit_wh='.$loc->fk_entrepot.'">';
-						print img_picto($langs->trans('EditLocation'), 'edit');
-						print '</a> ';
-						print '<a href="'.$_SERVER['PHP_SELF'].'?id='.$object->id.'&action=binlocdeletelotloc&binloc_loc_id='.$loc->rowid.'&token='.newToken().'"';
-						print ' onclick="return confirm(\''.dol_escape_js($langs->trans('ConfirmRemoveLocation', $loc->warehouse_ref)).'\');">';
-						print img_picto($langs->trans('RemoveLocation'), 'delete');
-						print '</a>';
-						print '</div>';
-					}
-				}
-
-				print '</div>';
-			}
-		} elseif (!$add_mode) {
-			print '<div class="opacitymedium" style="padding:6px 8px;">'.$langs->trans('NoLocationsFound').'</div>';
-		}
-
-		// Add form
-		if ($add_mode && $user->hasRight('binloc', 'write')) {
-			$add_wh = GETPOSTINT('binloc_add_wh');
-			$warehouses = binloc_get_warehouses($this->db);
-
-			$existing_wh_ids = array();
-			foreach ($locations as $loc) {
-				$existing_wh_ids[$loc->fk_entrepot] = true;
-			}
-
-			print '<div style="padding:6px 8px; background:#f8fff8; border:1px solid #9c9; border-radius:3px; margin-top:4px;">';
-			print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'?id='.$object->id.'">';
-			print '<input type="hidden" name="token" value="'.newToken().'">';
-			print '<input type="hidden" name="action" value="binlocsavelotloc">';
-
-			print '<div style="display:flex; flex-wrap:wrap; gap:6px; align-items:end;">';
-			print '<span>';
-			print '<span class="opacitymedium small">'.$langs->trans('Warehouse').':</span> ';
-			print '<select name="binloc_fk_entrepot" class="flat minwidth150" onchange="window.location.href=\''.$_SERVER['PHP_SELF'].'?id='.$object->id.'&binloc_mode=add&binloc_add_wh=\'+this.value">';
-			print '<option value="0">'.$langs->trans('SelectWarehouse').'</option>';
-			foreach ($warehouses as $wh) {
-				if (isset($existing_wh_ids[$wh->rowid])) {
-					continue;
-				}
-				$sel = ($add_wh == $wh->rowid) ? ' selected' : '';
-				print '<option value="'.$wh->rowid.'"'.$sel.'>'.dol_escape_htmltag($wh->ref).'</option>';
-			}
-			print '</select>';
-			print '</span>';
-
-			if ($add_wh > 0) {
-				$add_levels = $levelObj->fetchByWarehouse($add_wh);
-				if (!empty($add_levels)) {
-					foreach ($add_levels as $num => $cfg) {
-						print '<span>';
-						print '<span class="opacitymedium small">'.dol_escape_htmltag($cfg->label).':</span> ';
-						print binloc_render_level_input($cfg, 'binloc_level'.$num, '', 'flat', 'style="width:70px;"');
-						print '</span>';
-					}
-					print '<span>';
-					print '<span class="opacitymedium small">'.$langs->trans('LocationNote').':</span> ';
-					print '<input type="text" name="binloc_note" class="flat" style="width:80px;">';
-					print '</span>';
-					print '<input type="submit" class="button smallpaddingimp" value="'.dol_escape_htmltag($langs->trans('Save')).'">';
-				} else {
-					print '<span class="opacitymedium">'.$langs->trans('NoLevelsConfigured').'</span>';
-				}
-			}
-
-			print ' <a href="'.$_SERVER['PHP_SELF'].'?id='.$object->id.'" class="button smallpaddingimp">'.$langs->trans('Cancel').'</a>';
-			print '</div>';
-			print '</form>';
-			print '</div>';
-		}
-
-		// Add button — hidden when serial already has a location (one serial = one location)
-		if (!$add_mode && $user->hasRight('binloc', 'write') && empty($locations)) {
-			print '<div style="padding:6px 8px;">';
-			print '<a href="'.$_SERVER['PHP_SELF'].'?id='.$object->id.'&binloc_mode=add" class="button smallpaddingimp">';
-			print img_picto('', 'add', 'class="pictofixedwidth"').$langs->trans('AddLocation');
-			print '</a>';
-			print '</div>';
-		}
-
-		print '</div>';
-
-		// Reopen the tabsAction div that we closed early
-		print '<div class="tabsAction">';
-
-		return 0;
-	}
-
-	/**
-	 * Hook: printFieldListTitle — add "Bin Location" column header on dispatch page
-	 *
-	 * @param  array   $parameters Hook parameters
-	 * @param  object  $object     Object
-	 * @param  string  $action     Current action
-	 * @return int
-	 */
-	public function printFieldListTitle($parameters, &$object, &$action)
-	{
-		global $langs;
-
-		if (!in_array('ordersupplierdispatch', explode(':', $parameters['currentcontext']))) {
-			return 0;
-		}
-
-		$langs->load('binloc@binloc');
-		print '<td>'.$langs->trans('BinLocations').'</td>';
 
 		return 0;
 	}

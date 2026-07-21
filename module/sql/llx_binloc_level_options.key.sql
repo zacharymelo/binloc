@@ -3,6 +3,6 @@
 -- Binloc: level options indexes and constraints
 --
 
-ALTER TABLE llx_binloc_level_options ADD UNIQUE INDEX uk_binloc_lvl_opt (entity, fk_entrepot, level_num, option_value);
-ALTER TABLE llx_binloc_level_options ADD INDEX idx_binloc_lvl_opt_entrepot (fk_entrepot);
-ALTER TABLE llx_binloc_level_options ADD CONSTRAINT fk_binloc_lvl_opt_entrepot FOREIGN KEY (fk_entrepot) REFERENCES llx_entrepot (rowid) ON DELETE CASCADE;
+ALTER TABLE llx_binloc_level_options ADD UNIQUE INDEX uk_binloc_lvl_opt (fk_level, value);
+ALTER TABLE llx_binloc_level_options ADD INDEX idx_binloc_lvl_opt_level (fk_level);
+ALTER TABLE llx_binloc_level_options ADD CONSTRAINT fk_binloc_lvl_opt_level FOREIGN KEY (fk_level) REFERENCES llx_binloc_warehouse_levels (rowid) ON DELETE CASCADE;
