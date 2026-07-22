@@ -6,14 +6,19 @@ Bin-location tracking for Dolibarr. Track where products live inside warehouses 
 
 Each warehouse can define its own location hierarchy — you're not forced into a single global scheme. Products can have different location coordinates in each warehouse they occupy. The module adds tabs to:
 
-- **Product card** — see everywhere this product lives, across warehouses
-- **Warehouse card** — see every product assigned to locations in this warehouse
-- **Manufacturing Order card** — see locations for MO input/output components
-- **Reception card** — see locations for received items
+- **Product card** — see everywhere this product lives, across warehouses; assign, edit and remove inline
+- **Warehouse card** — every located product in this warehouse, with **explore-by-bin filters** (filter by any level value, e.g. everything in Row R1 / Shelf A), inline edit and delete, and CSV export
+- **Manufacturing Order card** — assign bins to serials produced by the MO
+- **Reception card** — put received goods away line by line
+- **Lot/serial card** — a serial's single bin location, editable inline
 
-A bulk-assign page lets you set locations across many products at once.
+A bulk-assign page sets locations across many products at once (fill-down, batch-set with confirmation, explicit clearing). All editing is AJAX — no page reloads, and switching warehouse in a form keeps what you typed.
 
-Levels can be free text, numbers, or managed dropdown lists. Dropdown values are managed per level on the admin page — renaming a value updates every existing assignment automatically, and values in use can be disabled but not deleted, so bin data is never silently orphaned.
+Levels can be free text, numbers, or managed dropdown lists. Dropdown values are managed per level on the admin page — renaming a value updates every existing assignment automatically, values in use can be disabled but not deleted (so bin data is never silently orphaned), and each value's usage count links to the exact locations using it.
+
+**CSV import/export** (Import/Export admin tab) supports spreadsheet workflows: design the bin layout in Google Sheets and import it, and bulk-load or round-trip product→bin assignments per warehouse. Imports preview every planned change before writing and apply all-or-nothing.
+
+📖 **[User guide](docs/USER-GUIDE.md)** — full instructions for setup, assigning, exploring by bin, and the CSV formats.
 
 ## Upgrading from 1.x
 
