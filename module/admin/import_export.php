@@ -197,7 +197,7 @@ if ($action === 'apply_assign' && $can_write && $fk_entrepot > 0) {
 // ---- VIEW ----
 
 $page_name = 'BinlocSetup';
-llxHeader('', $langs->trans($page_name), '');
+llxHeader('', $langs->trans($page_name), binloc_help_url());
 
 $head = binloc_admin_prepare_head();
 print dol_get_fiche_head($head, 'importexport', $langs->trans($page_name), -1, 'stock');

@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.3.0] - 2026-07-22
+
+### Added
+- **In-app user guide**: the full user guide now ships with the module (`docs/USER-GUIDE.md`) and renders inside Dolibarr at `/custom/binloc/help.php`. Every Bin Locations page links to it via Dolibarr's standard **?** help icon in the top bar — so the docs always match the installed version.
+
 ## [2.2.0] - 2026-07-21
 
 ### Added

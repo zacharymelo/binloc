@@ -170,7 +170,7 @@ if ($fk_entrepot > 0 && in_array($action, array('addoption', 'renameoption', 'to
 // ---- VIEW ----
 
 $page_name = 'BinlocSetup';
-llxHeader('', $langs->trans($page_name), '');
+llxHeader('', $langs->trans($page_name), binloc_help_url());
 
 binloc_print_assets();
 

@@ -41,7 +41,7 @@ $levelObj = new BinlocWarehouseLevel($db);
 
 // ---- VIEW ----
 
-llxHeader('', $langs->trans('BulkBinAssign'), '');
+llxHeader('', $langs->trans('BulkBinAssign'), binloc_help_url());
 
 binloc_print_assets();
 

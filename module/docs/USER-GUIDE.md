@@ -1,6 +1,6 @@
 # Binloc User Guide
 
-This guide covers everything a warehouse admin or operator does with Binloc day to day. It matches version **2.2.0**.
+This guide covers everything a warehouse admin or operator does with Binloc day to day. It matches version **2.3.0**.
 
 ## Contents
 

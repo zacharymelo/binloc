@@ -40,6 +40,18 @@ function binloc_admin_prepare_head()
 }
 
 /**
+ * URL of the in-app user guide, for llxHeader's help icon.
+ * Must be fully qualified: Dolibarr's getHelpParamFor() only treats
+ * help_url as a direct link when it starts with "http".
+ *
+ * @return string
+ */
+function binloc_help_url()
+{
+	return dol_buildpath('/binloc/help.php', 2);
+}
+
+/**
  * Print the shared JS/CSS assets (once per page)
  *
  * @return void
@@ -52,7 +64,7 @@ function binloc_print_assets()
 	}
 	$printed = true;
 
-	$v = '2.2.0';
+	$v = '2.3.0';
 	print '<link rel="stylesheet" href="'.dol_buildpath('/binloc/css/binloc.css', 1).'?v='.$v.'">'."\n";
 	print '<script src="'.dol_buildpath('/binloc/js/binloc.js', 1).'?v='.$v.'"></script>'."\n";
 	print '<script>Binloc.init({ajaxBase: "'.dol_escape_js(dol_buildpath('/binloc/ajax/', 1)).'", token: "'.newToken().'"});</script>'."\n";

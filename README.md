@@ -18,7 +18,7 @@ Levels can be free text, numbers, or managed dropdown lists. Dropdown values are
 
 **CSV import/export** (Import/Export admin tab) supports spreadsheet workflows: design the bin layout in Google Sheets and import it, and bulk-load or round-trip product→bin assignments per warehouse. Imports preview every planned change before writing and apply all-or-nothing.
 
-📖 **[User guide](docs/USER-GUIDE.md)** — full instructions for setup, assigning, exploring by bin, and the CSV formats.
+📖 **[User guide](module/docs/USER-GUIDE.md)** — full instructions for setup, assigning, exploring by bin, and the CSV formats. The guide ships with the module and is available inside Dolibarr via the **?** help icon on every Bin Locations page.
 
 ## Upgrading from 1.x
 

@@ -43,7 +43,7 @@ $migration_status = $migration->getStatus();
 // ---- VIEW ----
 
 $page_name = 'BinlocSetup';
-llxHeader('', $langs->trans($page_name), '');
+llxHeader('', $langs->trans($page_name), binloc_help_url());
 
 $head = binloc_admin_prepare_head();
 print dol_get_fiche_head($head, 'settings', $langs->trans($page_name), -1, 'stock');

@@ -72,7 +72,7 @@ $has_filters = !empty($level_filters);
 
 // ---- VIEW ----
 
-llxHeader('', $langs->trans('BinLocations').' - '.$object->ref, '');
+llxHeader('', $langs->trans('BinLocations').' - '.$object->ref, binloc_help_url());
 
 binloc_print_assets();
 

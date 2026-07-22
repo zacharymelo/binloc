@@ -130,6 +130,12 @@ BinlocMigrationFailed = Migration failed — see the banner for details
 BinlocMigrationReport = Migration report
 
 #
+# Help
+#
+BinlocHelp = Bin Locations — User Guide
+BinlocHelpMissing = The bundled user guide file (docs/USER-GUIDE.md) is missing from the module directory.
+
+#
 # CSV import/export
 #
 CsvImportExport = Import/Export
