@@ -130,6 +130,57 @@ BinlocMigrationFailed = Migration failed — see the banner for details
 BinlocMigrationReport = Migration report
 
 #
+# CSV import/export
+#
+CsvImportExport = Import/Export
+CsvPageDesc = CSV round-trip for spreadsheet workflows (Google Sheets, Excel): export, edit, download as CSV, import. Imports show a preview of every planned change before anything is written, and apply all-or-nothing.
+CsvLayoutSection = Warehouse layout (levels and allowed values)
+CsvLayoutDesc = Columns: warehouse; level; label; type (text/number/list); allowed_values (pipe-separated, e.g. A|B|C). One row per level. Import matches levels by label, creates new ones, adds missing allowed values — it never deletes anything.
+CsvAssignSection = Bin assignments (product → bin)
+CsvAssignDesc = Per warehouse. Columns: product; product_label (ignored); lot; one column per level label; note. Level columns present in the file are authoritative — an empty cell clears that level, a fully empty row removes the assignment. Rows are matched on product ref + lot.
+CsvExportAllLayouts = Export all layouts (CSV)
+CsvExportAssignments = Export assignments (CSV)
+CsvPreviewImport = Upload and preview
+CsvConfirmImport = Confirm import
+CsvCreateMissingValues = Create missing dropdown values
+CsvImportPreview = Preview — nothing has been written yet
+CsvImportApplied = Import applied
+CsvImportDone = Import applied successfully
+CsvImportFailed = Import failed — nothing was written
+CsvFixErrorsFirst = Fix the errors in the file and upload it again. Files with errors are never imported, even partially.
+CsvUploadFailed = Upload failed or the file could not be parsed
+CsvBadHeader = Bad header: expected "%s", got "%s"
+CsvUnknownWarehouse = Line %s: unknown warehouse "%s"
+CsvBadLabel = Line %s: missing or too long label
+CsvBadType = Line %s: bad type "%s" (use text, number or list)
+CsvUnknownColumn = Unknown column "%s" — it does not match any level of this warehouse
+CsvMissingProductColumn = The file has no "product" column
+CsvUnknownProduct = Line %s: unknown product ref "%s"
+CsvUnknownLot = Line %s: lot "%s" does not exist for product "%s"
+CsvUnknownValue = Line %s: value "%s" is not in the allowed list for "%s" (tick "Create missing dropdown values" to add it)
+CsvBadValue = Line %s: invalid value "%s" for "%s" (%s)
+CsvRowFailed = Line %s: save failed (%s)
+CsvLevelNotInFile = kept (not in file)
+CsvCountcreate_level = new levels
+CsvCountupdate_level = updated levels
+CsvCountadd_value = new allowed values
+CsvCountunchanged = unchanged
+CsvCountcreate = new assignments
+CsvCountupdate = updated assignments
+CsvCountclear = cleared assignments
+CsvCountskip = skipped rows
+CsvCountvalue_add = new dropdown values
+CsvActioncreate_level = create level
+CsvActionupdate_level = update level
+CsvActionadd_value = add value
+CsvActionunchanged = unchanged
+CsvActionkept = kept
+CsvActioncreate = create
+CsvActionupdate = update
+CsvActionclear = clear
+CsvActionvalue_add = add value
+
+#
 # Settings
 #
 ClearOnZeroStock = Auto-clear location when stock drops to zero

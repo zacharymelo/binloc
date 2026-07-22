@@ -31,6 +31,11 @@ function binloc_admin_prepare_head()
 	$head[$h][2] = 'warehouselevels';
 	$h++;
 
+	$head[$h][0] = dol_buildpath('/binloc/admin/import_export.php', 1);
+	$head[$h][1] = $langs->trans('CsvImportExport');
+	$head[$h][2] = 'importexport';
+	$h++;
+
 	return $head;
 }
 
@@ -47,7 +52,7 @@ function binloc_print_assets()
 	}
 	$printed = true;
 
-	$v = '2.1.0';
+	$v = '2.2.0';
 	print '<link rel="stylesheet" href="'.dol_buildpath('/binloc/css/binloc.css', 1).'?v='.$v.'">'."\n";
 	print '<script src="'.dol_buildpath('/binloc/js/binloc.js', 1).'?v='.$v.'"></script>'."\n";
 	print '<script>Binloc.init({ajaxBase: "'.dol_escape_js(dol_buildpath('/binloc/ajax/', 1)).'", token: "'.newToken().'"});</script>'."\n";

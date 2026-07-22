@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.2.0] - 2026-07-21
+
+### Added
+- **CSV import/export** (new Import/Export admin tab) for spreadsheet workflows — build the layout in Google Sheets, download as CSV, import. Export output is directly re-importable.
+  - *Warehouse layout* format: one row per level (`warehouse;level;label;type;allowed_values` with pipe-separated values). Import matches levels by label, creates new ones, adds missing allowed values — never deletes.
+  - *Bin assignments* format (per warehouse): `product;product_label;lot;<one column per level>;note`. Level columns present in the file are authoritative (empty cell clears the level, empty row removes the assignment); rows are upserts on product ref + lot.
+  - Imports show a dry-run preview of every planned change (and every error) before anything is written, and apply all-or-nothing in a transaction. Unknown dropdown values are rejected unless the "create missing dropdown values" option is ticked.
+  - Export button on the warehouse Bin Locations tab.
+
 ## [2.1.0] - 2026-07-21
 
 ### Added
