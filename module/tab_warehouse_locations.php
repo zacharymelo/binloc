@@ -110,9 +110,28 @@ foreach ($wh_levels as $cfg) {
 print implode(' &rarr; ', $label_strs);
 print '</div>';
 
-// Search bar: product search + per-level bin filters (explore by bin)
+print binloc_render_level_legend($wh_levels);
+
+// Fetch one extra row so print_barre_liste knows a next page exists
+$locations = $locObj->fetchAllByWarehouse($id, $search, $sortfield, $sortorder, ($limit > 0 ? $limit + 1 : 0), $offset, $level_filters);
+$total     = $locObj->countByWarehouse($id, $search, $level_filters);
+$num       = count($locations);
+if ($limit > 0 && $num > $limit) {
+	array_splice($locations, $limit);
+}
+
+$list_param = '&id='.$id.(!empty($search) ? '&search_product='.urlencode($search) : '').$filter_param;
+if ($limit > 0 && $limit != $conf->liste_limit) {
+	$list_param .= '&limit='.((int) $limit);
+}
+
+// Search bar: product search + per-level bin filters (explore by bin).
+// print_barre_liste stays inside this form: its limit selector submits the
+// enclosing form, so the filters must be carried along.
 print '<form method="GET" action="'.$_SERVER['PHP_SELF'].'">';
 print '<input type="hidden" name="id" value="'.$id.'">';
+print '<input type="hidden" name="sortfield" value="'.dol_escape_htmltag($sortfield).'">';
+print '<input type="hidden" name="sortorder" value="'.dol_escape_htmltag($sortorder).'">';
 print '<div class="marginbottomonly binloc-filter-bar">';
 print '<input type="text" name="search_product" class="flat minwidth200" value="'.dol_escape_htmltag($search).'" placeholder="'.dol_escape_htmltag($langs->trans('SearchProduct')).'">';
 foreach ($wh_levels as $level_id => $cfg) {
@@ -135,14 +154,10 @@ if (!empty($search) || $has_filters) {
 	print ' <a href="'.$_SERVER['PHP_SELF'].'?id='.$id.'" class="button smallpaddingimp">'.$langs->trans('Reset').'</a>';
 }
 print '</div>';
-print '</form>';
 
-$locations = $locObj->fetchAllByWarehouse($id, $search, $sortfield, $sortorder, $limit, $offset, $level_filters);
-$total     = $locObj->countByWarehouse($id, $search, $level_filters);
+$show_list = (!empty($locations) || !empty($search) || $has_filters);
 
-$list_param = '&id='.$id.(!empty($search) ? '&search_product='.urlencode($search) : '').$filter_param;
-
-if (!empty($locations) || !empty($search) || $has_filters) {
+if ($show_list) {
 	print_barre_liste(
 		$langs->trans('ProductsInWarehouse', $object->ref),
 		$page,
@@ -151,7 +166,7 @@ if (!empty($locations) || !empty($search) || $has_filters) {
 		$sortfield,
 		$sortorder,
 		'',
-		count($locations),
+		$num,
 		$total,
 		'',
 		0,
@@ -159,7 +174,10 @@ if (!empty($locations) || !empty($search) || $has_filters) {
 		'',
 		$limit
 	);
+}
+print '</form>';
 
+if ($show_list) {
 	$has_lots = false;
 	foreach ($locations as $loc) {
 		if (!empty($loc->lot_batch)) {
@@ -201,7 +219,8 @@ if (!empty($locations) || !empty($search) || $has_filters) {
 		print '<td class="right">'.price2num($loc->stock, 0).'</td>';
 		foreach ($wh_levels as $level_id => $cfg) {
 			$display = isset($loc->values[$level_id]) ? $loc->values[$level_id]->display : '';
-			print '<td class="binloc-val-cell" data-level="'.$level_id.'">';
+			$desc = (isset($loc->values[$level_id]) && !empty($loc->values[$level_id]->description)) ? $loc->values[$level_id]->description : '';
+			print '<td class="binloc-val-cell" data-level="'.$level_id.'"'.($desc !== '' ? ' title="'.dol_escape_htmltag($desc).'"' : '').'>';
 			print ($display !== null && $display !== '') ? dol_escape_htmltag($display) : '<span class="opacitymedium">&mdash;</span>';
 			print '</td>';
 		}

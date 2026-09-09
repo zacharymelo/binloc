@@ -104,7 +104,7 @@ class BinlocWarehouseLevel extends CommonObject
 	 *   - datatype ('text' | 'number' | 'list')
 	 *   - position (int)
 	 *   - active   (int)
-	 *   - options  (array of stdClass {id, value, position, active}, ALL options
+	 *   - options  (array of stdClass {id, value, description, position, active}, ALL options
 	 *               including inactive ones — renderers decide what to show)
 	 *
 	 * @param  int  $fk_entrepot      Warehouse ID
@@ -136,7 +136,7 @@ class BinlocWarehouseLevel extends CommonObject
 		}
 
 		$sql = "SELECT w.rowid, w.fk_entrepot, w.label, w.datatype, w.position, w.active,";
-		$sql .= " o.rowid as opt_id, o.value as opt_value, o.position as opt_position, o.active as opt_active";
+		$sql .= " o.rowid as opt_id, o.value as opt_value, o.description as opt_description, o.position as opt_position, o.active as opt_active";
 		$sql .= " FROM ".MAIN_DB_PREFIX.$this->table_element." as w";
 		$sql .= " LEFT JOIN ".MAIN_DB_PREFIX."binloc_level_options as o ON o.fk_level = w.rowid";
 		$sql .= " WHERE w.fk_entrepot IN (".implode(',', $ids).")";
@@ -167,10 +167,11 @@ class BinlocWarehouseLevel extends CommonObject
 			}
 			if ($obj->opt_id) {
 				$opt = new stdClass();
-				$opt->id       = (int) $obj->opt_id;
-				$opt->value    = $obj->opt_value;
-				$opt->position = (int) $obj->opt_position;
-				$opt->active   = (int) $obj->opt_active;
+				$opt->id          = (int) $obj->opt_id;
+				$opt->value       = $obj->opt_value;
+				$opt->description = (string) $obj->opt_description;
+				$opt->position    = (int) $obj->opt_position;
+				$opt->active      = (int) $obj->opt_active;
 				$out[$wh][$lid]->options[] = $opt;
 			}
 		}

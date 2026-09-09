@@ -64,7 +64,7 @@ function binloc_print_assets()
 	}
 	$printed = true;
 
-	$v = '2.3.0';
+	$v = '2.4.0';
 	print '<link rel="stylesheet" href="'.dol_buildpath('/binloc/css/binloc.css', 1).'?v='.$v.'">'."\n";
 	print '<script src="'.dol_buildpath('/binloc/js/binloc.js', 1).'?v='.$v.'"></script>'."\n";
 	print '<script>Binloc.init({ajaxBase: "'.dol_escape_js(dol_buildpath('/binloc/ajax/', 1)).'", token: "'.newToken().'"});</script>'."\n";
@@ -128,7 +128,8 @@ function binloc_render_level_input($level_cfg, $prefix = '', $current = null, $c
 			$found = $found || $is_current;
 			$sel = $is_current ? ' selected' : '';
 			$suffix = (!$opt->active ? ' ('.$langs->trans('LegacyValue').')' : '');
-			$html .= '<option value="'.(int) $opt->id.'"'.$sel.'>'.dol_escape_htmltag($opt->value.$suffix).'</option>';
+			$title = (!empty($opt->description) ? ' title="'.dol_escape_htmltag($opt->description).'"' : '');
+			$html .= '<option value="'.(int) $opt->id.'"'.$sel.$title.'>'.dol_escape_htmltag($opt->value.$suffix).'</option>';
 		}
 		if ($current_opt > 0 && !$found && $current && $current->display !== null) {
 			// Option row vanished entirely (should not happen — FK protects it) but never blank a stored value
@@ -160,6 +161,65 @@ function binloc_render_level_inputs($level_cfgs, $prefix = '', $values = array()
 		$html .= binloc_render_level_input($cfg, $prefix, $current, $css_class).' ';
 	}
 	return $html;
+}
+
+/**
+ * Render a "key" legend for a warehouse's dropdown values: every option code
+ * that has a description is listed as "code = description", grouped by level.
+ * Returns '' when no option has a description, so pages can print it blindly.
+ *
+ * @param  array $level_cfgs Level configs keyed by rowid (fetchByWarehouse output)
+ * @return string            HTML fragment or ''
+ */
+function binloc_render_level_legend($level_cfgs)
+{
+	global $langs;
+
+	$groups = array();
+	foreach ($level_cfgs as $cfg) {
+		if ($cfg->datatype !== 'list') {
+			continue;
+		}
+		$pairs = array();
+		foreach ($cfg->options as $opt) {
+			if (!$opt->active || empty($opt->description)) {
+				continue;
+			}
+			$pairs[] = '<strong>'.dol_escape_htmltag($opt->value).'</strong> = '.dol_escape_htmltag($opt->description);
+		}
+		if (!empty($pairs)) {
+			$groups[] = dol_escape_htmltag($cfg->label).': '.implode(', ', $pairs);
+		}
+	}
+
+	if (empty($groups)) {
+		return '';
+	}
+
+	$html = '<div class="opacitymedium small binloc-legend">';
+	$html .= '<span class="binloc-legend-title">'.$langs->trans('BinValueLegend').'</span> &mdash; ';
+	$html .= implode(' &middot; ', $groups);
+	$html .= '</div>';
+	return $html;
+}
+
+/**
+ * Compact bin code: the level values concatenated in position order with no
+ * separator (e.g. values A, L, 2, 5, 3 -> "AL253"). Used on bin labels.
+ *
+ * @param  array $level_cfgs Level configs keyed by rowid (fetchByWarehouse output)
+ * @param  array $values     Values keyed by level rowid ({fk_option, value, display})
+ * @return string
+ */
+function binloc_compact_code($level_cfgs, $values)
+{
+	$parts = array();
+	foreach ($level_cfgs as $id => $cfg) {
+		if (isset($values[$id]) && $values[$id]->display !== null && $values[$id]->display !== '') {
+			$parts[] = $values[$id]->display;
+		}
+	}
+	return implode('', $parts);
 }
 
 /**
@@ -265,7 +325,9 @@ function binloc_render_warehouse_select($db, $name, $selected = 0, $css_class = 
 }
 
 /**
- * Get all products with stock in a specific warehouse (for bulk assign)
+ * Get all products present in a specific warehouse (for bulk assign): products
+ * with stock there, plus products already holding a non-lot bin assignment
+ * there even without stock (pre-assigned via the quick-assign picker).
  *
  * Each row: fk_product, ref, label, stock, loc_rowid (0 when unassigned),
  * note, location (formatted string), values (level rowid => value entry).
@@ -286,7 +348,7 @@ function binloc_get_products_in_warehouse($db, $fk_entrepot, $search = '', $sort
 	$products = array();
 
 	$sql = "SELECT p.rowid as fk_product, p.ref, p.label,";
-	$sql .= " ps.reel as stock,";
+	$sql .= " IFNULL(ps.reel, 0) as stock,";
 	$sql .= " pl.rowid as loc_rowid,";
 	$sql .= " pl.note,";
 	$sql .= " (SELECT GROUP_CONCAT(CONCAT(w.label, ': ', COALESCE(o.value, v.value))";
@@ -295,14 +357,14 @@ function binloc_get_products_in_warehouse($db, $fk_entrepot, $search = '', $sort
 	$sql .= "   INNER JOIN ".MAIN_DB_PREFIX."binloc_warehouse_levels as w ON w.rowid = v.fk_level";
 	$sql .= "   LEFT JOIN ".MAIN_DB_PREFIX."binloc_level_options as o ON o.rowid = v.fk_option";
 	$sql .= "   WHERE v.fk_location = pl.rowid) as location";
-	$sql .= " FROM ".MAIN_DB_PREFIX."product_stock as ps";
-	$sql .= " INNER JOIN ".MAIN_DB_PREFIX."product as p ON p.rowid = ps.fk_product";
+	$sql .= " FROM ".MAIN_DB_PREFIX."product as p";
+	$sql .= " LEFT JOIN ".MAIN_DB_PREFIX."product_stock as ps";
+	$sql .= "   ON (ps.fk_product = p.rowid AND ps.fk_entrepot = ".(int) $fk_entrepot.")";
 	$sql .= " LEFT JOIN ".MAIN_DB_PREFIX."binloc_product_location as pl";
-	$sql .= "   ON (pl.fk_product = ps.fk_product AND pl.fk_entrepot = ps.fk_entrepot";
+	$sql .= "   ON (pl.fk_product = p.rowid AND pl.fk_entrepot = ".(int) $fk_entrepot;
 	$sql .= "   AND pl.fk_product_lot = 0";
 	$sql .= "   AND pl.entity IN (".getEntity('stock')."))";
-	$sql .= " WHERE ps.fk_entrepot = ".(int) $fk_entrepot;
-	$sql .= " AND ps.reel > 0";
+	$sql .= " WHERE (ps.reel > 0 OR pl.rowid IS NOT NULL)";
 	$sql .= " AND p.entity IN (".getEntity('product').")";
 
 	if (!empty($search)) {
@@ -350,7 +412,8 @@ function binloc_get_products_in_warehouse($db, $fk_entrepot, $search = '', $sort
 }
 
 /**
- * Count products with stock in a specific warehouse
+ * Count products present in a specific warehouse (stock or bin assignment) —
+ * must stay in sync with binloc_get_products_in_warehouse()
  *
  * @param  DoliDB $db           Database handler
  * @param  int    $fk_entrepot  Warehouse ID
@@ -360,12 +423,15 @@ function binloc_get_products_in_warehouse($db, $fk_entrepot, $search = '', $sort
 function binloc_count_products_in_warehouse($db, $fk_entrepot, $search = '')
 {
 	$sql = "SELECT COUNT(*) as nb";
-	$sql .= " FROM ".MAIN_DB_PREFIX."product_stock as ps";
-	if (!empty($search)) {
-		$sql .= " INNER JOIN ".MAIN_DB_PREFIX."product as p ON p.rowid = ps.fk_product";
-	}
-	$sql .= " WHERE ps.fk_entrepot = ".(int) $fk_entrepot;
-	$sql .= " AND ps.reel > 0";
+	$sql .= " FROM ".MAIN_DB_PREFIX."product as p";
+	$sql .= " LEFT JOIN ".MAIN_DB_PREFIX."product_stock as ps";
+	$sql .= "   ON (ps.fk_product = p.rowid AND ps.fk_entrepot = ".(int) $fk_entrepot.")";
+	$sql .= " LEFT JOIN ".MAIN_DB_PREFIX."binloc_product_location as pl";
+	$sql .= "   ON (pl.fk_product = p.rowid AND pl.fk_entrepot = ".(int) $fk_entrepot;
+	$sql .= "   AND pl.fk_product_lot = 0";
+	$sql .= "   AND pl.entity IN (".getEntity('stock')."))";
+	$sql .= " WHERE (ps.reel > 0 OR pl.rowid IS NOT NULL)";
+	$sql .= " AND p.entity IN (".getEntity('product').")";
 
 	if (!empty($search)) {
 		$sql .= " AND (p.ref LIKE '%".$db->escape($search)."%'";

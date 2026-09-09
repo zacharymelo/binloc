@@ -123,7 +123,7 @@ if ($fk_entrepot > 0 && in_array($action, array('addoption', 'renameoption', 'to
 		foreach ($current_levels[$level_id]->options as $opt) {
 			$max_pos = max($max_pos, $opt->position);
 		}
-		$result = $optionObj->create($level_id, $value, $max_pos + 1, $user);
+		$result = $optionObj->create($level_id, $value, $max_pos + 1, $user, GETPOST('option_desc', 'alphanohtml'));
 		if ($result > 0) {
 			setEventMessages($langs->trans('OptionAdded'), null, 'mesgs');
 		} else {
@@ -141,7 +141,7 @@ if ($fk_entrepot > 0 && in_array($action, array('addoption', 'renameoption', 'to
 		if (!$owned) {
 			setEventMessages('Invalid option', null, 'errors');
 		} elseif ($action === 'renameoption') {
-			$result = $optionObj->rename($option_id, GETPOST('option_value', 'alphanohtml'), $user);
+			$result = $optionObj->rename($option_id, GETPOST('option_value', 'alphanohtml'), $user, GETPOST('option_desc', 'alphanohtml'));
 			if ($result > 0) {
 				setEventMessages($langs->trans('OptionRenamed'), null, 'mesgs');
 			} else {
@@ -334,7 +334,8 @@ if ($fk_entrepot > 0) {
 				print '<input type="hidden" name="level_id" value="'.$level_id.'">';
 				print '<input type="hidden" name="option_id" value="'.$opt->id.'">';
 				print '<input type="text" name="option_value" class="flat width100" value="'.dol_escape_htmltag($opt->value).'">';
-				print ' <input type="submit" class="button smallpaddingimp" value="'.dol_escape_htmltag($langs->trans('Rename')).'">';
+				print ' <input type="text" name="option_desc" class="flat minwidth150" value="'.dol_escape_htmltag($opt->description).'" placeholder="'.dol_escape_htmltag($langs->trans('OptionDescription')).'" title="'.dol_escape_htmltag($langs->trans('OptionDescriptionHint')).'">';
+				print ' <input type="submit" class="button smallpaddingimp" value="'.dol_escape_htmltag($langs->trans('Save')).'">';
 				print '</form>';
 				print '</td>';
 				print '<td class="opacitymedium small">';
@@ -377,6 +378,7 @@ if ($fk_entrepot > 0) {
 			print '<input type="hidden" name="fk_entrepot" value="'.$fk_entrepot.'">';
 			print '<input type="hidden" name="level_id" value="'.$level_id.'">';
 			print '<input type="text" name="option_value" class="flat width100" placeholder="'.dol_escape_htmltag($langs->trans('NewValue')).'">';
+			print ' <input type="text" name="option_desc" class="flat minwidth150" placeholder="'.dol_escape_htmltag($langs->trans('OptionDescription')).'" title="'.dol_escape_htmltag($langs->trans('OptionDescriptionHint')).'">';
 			print ' <input type="submit" class="button smallpaddingimp" value="'.dol_escape_htmltag($langs->trans('Add')).'">';
 			print '</form>';
 

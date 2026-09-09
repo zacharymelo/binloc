@@ -91,3 +91,76 @@
 	outline: 2px solid var(--colorbackredbutton, currentColor);
 	outline-offset: -2px;
 }
+
+.binloc-legend {
+	margin-bottom: 8px;
+}
+
+.binloc-legend-title {
+	font-weight: bold;
+}
+
+/* ---- Bin labels (preview and print) ---- */
+
+.binloc-label-sheet {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+	gap: 8px;
+	margin-top: 8px;
+}
+
+.binloc-label {
+	border: 1.5px solid var(--bordercolor, rgba(0, 0, 0, 0.5));
+	border-radius: 4px;
+	padding: 10px 12px;
+	break-inside: avoid;
+	page-break-inside: avoid;
+}
+
+.binloc-label-code {
+	font-family: monospace;
+	font-size: 1.7em;
+	font-weight: bold;
+	letter-spacing: 0.06em;
+	margin-bottom: 6px;
+	word-break: break-all;
+}
+
+.binloc-label-desc {
+	opacity: 0.7;
+}
+
+.binloc-label-subbin {
+	font-size: 0.9em;
+	margin-top: 6px;
+	padding-top: 4px;
+	border-top: 1px dashed var(--bordercolor, rgba(0, 0, 0, 0.25));
+}
+
+.binloc-label-items-title {
+	font-size: 0.8em;
+	font-weight: bold;
+	text-transform: uppercase;
+	opacity: 0.7;
+}
+
+.binloc-label-items ul {
+	margin: 2px 0 0;
+	padding-left: 16px;
+	font-size: 0.9em;
+}
+
+.binloc-label-batch {
+	opacity: 0.7;
+}
+
+/* Standalone print document (labels.php?output=print) */
+.binloc-print-body .binloc-label {
+	border-color: #000;
+}
+
+@media print {
+	.binloc-label-sheet {
+		grid-template-columns: repeat(3, 1fr);
+	}
+}

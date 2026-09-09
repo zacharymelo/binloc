@@ -39,13 +39,13 @@ class BinlocLevelOption
 	 *
 	 * @param  int  $fk_level         Level rowid
 	 * @param  bool $include_inactive Include deactivated options
-	 * @return array                  Array of stdClass {id, value, position, active}
+	 * @return array                  Array of stdClass {id, value, description, position, active}
 	 */
 	public function fetchByLevel($fk_level, $include_inactive = false)
 	{
 		$results = array();
 
-		$sql = "SELECT rowid, value, position, active FROM ".MAIN_DB_PREFIX."binloc_level_options";
+		$sql = "SELECT rowid, value, description, position, active FROM ".MAIN_DB_PREFIX."binloc_level_options";
 		$sql .= " WHERE fk_level = ".(int) $fk_level;
 		if (!$include_inactive) {
 			$sql .= " AND active = 1";
@@ -59,10 +59,11 @@ class BinlocLevelOption
 		}
 		while ($obj = $this->db->fetch_object($resql)) {
 			$opt = new stdClass();
-			$opt->id       = (int) $obj->rowid;
-			$opt->value    = $obj->value;
-			$opt->position = (int) $obj->position;
-			$opt->active   = (int) $obj->active;
+			$opt->id          = (int) $obj->rowid;
+			$opt->value       = $obj->value;
+			$opt->description = (string) $obj->description;
+			$opt->position    = (int) $obj->position;
+			$opt->active      = (int) $obj->active;
 			$results[] = $opt;
 		}
 		$this->db->free($resql);
@@ -73,26 +74,33 @@ class BinlocLevelOption
 	/**
 	 * Create an option
 	 *
-	 * @param  int    $fk_level Level rowid
-	 * @param  string $value    Option value
-	 * @param  int    $position Display order
-	 * @param  User   $user     User performing action
-	 * @return int              >0 if OK (rowid), -2 on duplicate, <0 if KO
+	 * @param  int    $fk_level    Level rowid
+	 * @param  string $value       Option value (short code shown in bins)
+	 * @param  int    $position    Display order
+	 * @param  User   $user        User performing action
+	 * @param  string $description Optional long meaning of the code (e.g. "Left Rack" for "L")
+	 * @return int                 >0 if OK (rowid), -2 on duplicate, <0 if KO
 	 */
-	public function create($fk_level, $value, $position, $user)
+	public function create($fk_level, $value, $position, $user, $description = '')
 	{
 		$value = trim($value);
 		if ($value === '' || dol_strlen($value) > 64) {
 			$this->error = 'InvalidOptionValue';
 			return -1;
 		}
+		$description = trim((string) $description);
+		if (dol_strlen($description) > 255) {
+			$this->error = 'InvalidOptionDescription';
+			return -1;
+		}
 
 		$sql = "INSERT INTO ".MAIN_DB_PREFIX."binloc_level_options (";
-		$sql .= "entity, fk_level, value, position, active, date_creation, fk_user_creat";
+		$sql .= "entity, fk_level, value, description, position, active, date_creation, fk_user_creat";
 		$sql .= ") VALUES (";
 		$sql .= (int) getEntity('stock');
 		$sql .= ", ".(int) $fk_level;
 		$sql .= ", '".$this->db->escape($value)."'";
+		$sql .= ", ".($description !== '' ? "'".$this->db->escape($description)."'" : "NULL");
 		$sql .= ", ".(int) $position;
 		$sql .= ", 1";
 		$sql .= ", '".$this->db->idate(dol_now())."'";
@@ -116,21 +124,30 @@ class BinlocLevelOption
 	 * Rename an option in place. Every location value referencing it follows
 	 * automatically — this is the v2 replacement for editing the CSV.
 	 *
-	 * @param  int    $id        Option rowid
-	 * @param  string $new_value New value
-	 * @param  User   $user      User performing action
-	 * @return int               >0 if OK, -2 on duplicate, <0 if KO
+	 * @param  int         $id          Option rowid
+	 * @param  string      $new_value   New value (short code)
+	 * @param  User        $user        User performing action
+	 * @param  string|null $description New description, or null to leave it unchanged
+	 * @return int                      >0 if OK, -2 on duplicate, <0 if KO
 	 */
-	public function rename($id, $new_value, $user)
+	public function rename($id, $new_value, $user, $description = null)
 	{
 		$new_value = trim($new_value);
 		if ($new_value === '' || dol_strlen($new_value) > 64) {
 			$this->error = 'InvalidOptionValue';
 			return -1;
 		}
+		if ($description !== null && dol_strlen(trim($description)) > 255) {
+			$this->error = 'InvalidOptionDescription';
+			return -1;
+		}
 
 		$sql = "UPDATE ".MAIN_DB_PREFIX."binloc_level_options";
 		$sql .= " SET value = '".$this->db->escape($new_value)."', fk_user_modif = ".(int) $user->id;
+		if ($description !== null) {
+			$description = trim($description);
+			$sql .= ", description = ".($description !== '' ? "'".$this->db->escape($description)."'" : "NULL");
+		}
 		$sql .= " WHERE rowid = ".(int) $id;
 
 		$resql = $this->db->query($sql);

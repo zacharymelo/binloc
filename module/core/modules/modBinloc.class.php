@@ -34,7 +34,7 @@ class modBinloc extends DolibarrModules
 		$this->description   = 'Track product locations within warehouses using configurable bin/shelf/row levels';
 		$this->descriptionlong = 'Each warehouse defines its own location hierarchy (e.g. Row/Bay/Shelf/Bin or Case/Drawer/Bin). Products can have different location coordinates in each warehouse they occupy. Includes bulk assignment, per-warehouse and per-product views.';
 		$this->editor_name   = 'Zachary Melo';
-		$this->version       = '2.3.0';
+		$this->version       = '2.4.0';
 		$this->const_name    = 'MAIN_MODULE_BINLOC';
 		$this->picto         = 'stock';
 
@@ -123,12 +123,27 @@ class modBinloc extends DolibarrModules
 		$this->menu[$r++] = array(
 			'fk_menu'  => 'fk_mainmenu=products,fk_leftmenu=stock',
 			'type'     => 'left',
+			'titre'    => 'BinLabels',
+			'mainmenu' => 'products',
+			'leftmenu' => 'binloc_labels',
+			'url'      => '/binloc/labels.php',
+			'langs'    => 'binloc@binloc',
+			'position' => 211,
+			'enabled'  => 'isModEnabled("binloc")',
+			'perms'    => '$user->hasRight("binloc", "read")',
+			'target'   => '',
+			'user'     => 2,
+		);
+
+		$this->menu[$r++] = array(
+			'fk_menu'  => 'fk_mainmenu=products,fk_leftmenu=stock',
+			'type'     => 'left',
 			'titre'    => 'WarehouseLevels',
 			'mainmenu' => 'products',
 			'leftmenu' => 'binloc_levels',
 			'url'      => '/binloc/admin/warehouse_levels.php',
 			'langs'    => 'binloc@binloc',
-			'position' => 211,
+			'position' => 212,
 			'enabled'  => 'isModEnabled("binloc")',
 			'perms'    => '$user->hasRight("binloc", "admin")',
 			'target'   => '',

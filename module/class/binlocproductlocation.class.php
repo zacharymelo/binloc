@@ -18,7 +18,8 @@ require_once DOL_DOCUMENT_ROOT.'/core/class/commonobject.class.php';
  *
  * fk_product_lot is always an int; 0 means "no lot". Level values live in
  * llx_binloc_location_value as $this->values, a map keyed by level rowid:
- *   fk_level => stdClass { fk_option (int|null), value (string|null), display (string) }
+ *   fk_level => stdClass { fk_option (int|null), value (string|null), display (string),
+ *   description (string, from the option when set — '' for text/number levels) }
  * List levels reference an option rowid (renames propagate automatically);
  * text/number levels store the raw string.
  */
@@ -428,7 +429,7 @@ class BinlocProductLocation extends CommonObject
 	{
 		$values = array();
 
-		$sql = "SELECT v.fk_level, v.fk_option, v.value, o.value as option_value";
+		$sql = "SELECT v.fk_level, v.fk_option, v.value, o.value as option_value, o.description as option_desc";
 		$sql .= " FROM ".MAIN_DB_PREFIX."binloc_location_value as v";
 		$sql .= " LEFT JOIN ".MAIN_DB_PREFIX."binloc_level_options as o ON o.rowid = v.fk_option";
 		$sql .= " WHERE v.fk_location = ".(int) $fk_location;
@@ -440,9 +441,10 @@ class BinlocProductLocation extends CommonObject
 		}
 		while ($obj = $this->db->fetch_object($resql)) {
 			$entry = new stdClass();
-			$entry->fk_option = $obj->fk_option ? (int) $obj->fk_option : null;
-			$entry->value     = $obj->value;
-			$entry->display   = ($obj->fk_option ? $obj->option_value : $obj->value);
+			$entry->fk_option   = $obj->fk_option ? (int) $obj->fk_option : null;
+			$entry->value       = $obj->value;
+			$entry->display     = ($obj->fk_option ? $obj->option_value : $obj->value);
+			$entry->description = ($obj->fk_option ? (string) $obj->option_desc : '');
 			$values[(int) $obj->fk_level] = $entry;
 		}
 		$this->db->free($resql);
@@ -534,7 +536,7 @@ class BinlocProductLocation extends CommonObject
 			return;
 		}
 
-		$sql = "SELECT v.fk_location, v.fk_level, v.fk_option, v.value, o.value as option_value";
+		$sql = "SELECT v.fk_location, v.fk_level, v.fk_option, v.value, o.value as option_value, o.description as option_desc";
 		$sql .= " FROM ".MAIN_DB_PREFIX."binloc_location_value as v";
 		$sql .= " LEFT JOIN ".MAIN_DB_PREFIX."binloc_level_options as o ON o.rowid = v.fk_option";
 		$sql .= " WHERE v.fk_location IN (".implode(',', $ids).")";
@@ -545,9 +547,10 @@ class BinlocProductLocation extends CommonObject
 		}
 		while ($obj = $this->db->fetch_object($resql)) {
 			$entry = new stdClass();
-			$entry->fk_option = $obj->fk_option ? (int) $obj->fk_option : null;
-			$entry->value     = $obj->value;
-			$entry->display   = ($obj->fk_option ? $obj->option_value : $obj->value);
+			$entry->fk_option   = $obj->fk_option ? (int) $obj->fk_option : null;
+			$entry->value       = $obj->value;
+			$entry->display     = ($obj->fk_option ? $obj->option_value : $obj->value);
+			$entry->description = ($obj->fk_option ? (string) $obj->option_desc : '');
 			$byId[(int) $obj->fk_location]->values[(int) $obj->fk_level] = $entry;
 		}
 		$this->db->free($resql);

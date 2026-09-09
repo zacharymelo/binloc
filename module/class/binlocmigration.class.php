@@ -24,7 +24,7 @@ require_once DOL_DOCUMENT_ROOT.'/core/lib/admin.lib.php';
  */
 class BinlocMigration
 {
-	const TARGET_DB_VERSION = '2.0.0-9';
+	const TARGET_DB_VERSION = '2.4.0-1';
 
 	/** @var DoliDB */
 	public $db;
@@ -62,6 +62,7 @@ class BinlocMigration
 			'2.0.0-7' => 'stepExplodeLevelValues',
 			'2.0.0-8' => 'stepVerify',
 			'2.0.0-9' => 'stepDropLegacyColumns',
+			'2.4.0-1' => 'stepOptionDescriptions',
 		);
 	}
 
@@ -767,6 +768,20 @@ class BinlocMigration
 			$this->db->query("DROP TABLE ".MAIN_DB_PREFIX."binloc_level_options_v1");
 		}
 
+		return 1;
+	}
+
+	/**
+	 * 2.4.0-1: Add the description column to level options (short code in
+	 * `value`, human-readable meaning in `description`)
+	 *
+	 * @return int
+	 */
+	protected function stepOptionDescriptions()
+	{
+		if (!$this->addColumnIfMissing('binloc_level_options', 'description', 'VARCHAR(255) DEFAULT NULL AFTER value')) {
+			return -1;
+		}
 		return 1;
 	}
 

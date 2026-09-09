@@ -1,5 +1,15 @@
 # Changelog
 
+## [2.4.0] - 2026-09-09
+
+### Added
+- **Quick assign on Bulk Bin Assignment**: a product picker at the top of the page assigns any product to a bin in the selected warehouse — including products with no stock there yet. Pre-assigned products stay visible in the bulk table (it now lists products with stock *or* a bin assignment).
+- **Bin Labels** (new page, read permission): generates one printable label per distinct bin in use, selected by location (per-level filters) or by product (search). Labels show the compact bin code (level values concatenated, e.g. `AL253B`) and the products assigned (quantities ignored). When the warehouse has two or more levels, the deepest level acts as the sub-bin: it stays off the bin code and contents are grouped under one heading per sub-bin value (`Bag 3 (description)`), using the level's configured name. A "Key" legend explains value codes on screen and on the printout. "Print labels" opens a chrome-less view that triggers the browser print dialog.
+- **Dropdown value descriptions**: each allowed value can carry a description (value `L`, description `Left Rack`) so bin names stay short without losing meaning. Shown as tooltips on inputs and value cells, in a "Key" legend on the bulk/warehouse/label pages, and on bin labels. New `description` column on `llx_binloc_level_options` (migration step 2.4.0-1 — run from the setup-page banner after a file-only upgrade).
+
+### Fixed
+- **List pagination**: the bulk-assign page and warehouse tab never showed next-page navigation (they fetched exactly one page, so Dolibarr's list bar could not detect more rows), and the rows-per-page selector did nothing (it submits its enclosing form, and the list bar was outside any form). Both now paginate correctly, and the chosen page size survives page changes and sorting.
+
 ## [2.3.0] - 2026-07-22
 
 ### Added

@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS llx_binloc_level_options (
 	entity          INTEGER         NOT NULL DEFAULT 1,
 	fk_level        INTEGER         NOT NULL,
 	value           VARCHAR(64)     NOT NULL,
+	description     VARCHAR(255)    DEFAULT NULL,
 	position        INTEGER         NOT NULL DEFAULT 0,
 	active          TINYINT         NOT NULL DEFAULT 1,
 	date_creation   DATETIME        NOT NULL,

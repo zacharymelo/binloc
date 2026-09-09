@@ -71,7 +71,7 @@ TypeText = Text
 TypeNumber = Number
 TypeList = Dropdown
 ListValues = Allowed Values
-ListValuesRenameHint = Renaming a value here updates every existing bin location that uses it. Values in use cannot be deleted — disable them instead to hide them from new input while keeping existing assignments readable.
+ListValuesRenameHint = Renaming a value here updates every existing bin location that uses it. Values in use cannot be deleted — disable them instead to hide them from new input while keeping existing assignments readable. Keep values short (they build the bin name) and put the full meaning in the description, e.g. "L" = "Left Rack".
 OptionAdded = Value added
 OptionRenamed = Value renamed — all assignments updated
 OptionDeleted = Value deleted
@@ -102,13 +102,36 @@ ManageLevels = Manage Levels
 #
 # Bulk assign
 #
-BulkAssignDesc = Assign or update bin locations for all products with stock in a warehouse
+BulkAssignDesc = Assign or update bin locations for products in a warehouse. Products with stock appear automatically; use the picker below to slot in a product that has no stock here yet.
 BulkSaveAll = Save All
 BulkSaved = %s location(s) saved
 BulkNothingChanged = No changes to save
 SearchProduct = Search by ref or label
 ConfirmBatchSet = Set %fields% on %count% row(s)? Fields you left empty are not changed.
 LegacyValue = legacy
+QuickAssignTitle = Add a product to a bin
+QuickAssignDesc = Works for any product — it does not need stock in this warehouse yet. The product then appears in the table below.
+QuickAssignButton = Assign bin
+SelectProductFirst = Select a product first
+NoProductsInWarehouseYet = No products with stock or a bin assignment in this warehouse yet — use the picker above to add the first one
+
+#
+# Bin labels
+#
+BinLabels = Bin Labels
+BinLabelsDesc = Generate printable labels for the bins in use. Narrow by location with the level filters, or by product with the search — one label per distinct bin, showing the bin code and its contents.
+PrintLabels = Print labels
+NoBinsMatch = No bins match the current selection
+BinContents = Contents
+LabelsCount = %s label(s)
+BinValueLegend = Key
+
+#
+# Dropdown value descriptions
+#
+OptionDescription = Description
+OptionDescriptionHint = Optional meaning of the code, e.g. value "L" with description "Left Rack". Shown as a tooltip, in the legend, and on bin labels — the bin name itself stays short.
+InvalidOptionDescription = Description is too long (255 characters maximum)
 
 #
 # Permissions
