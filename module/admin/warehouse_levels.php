@@ -133,25 +133,31 @@ if ($action === 'savelevels' && $fk_entrepot > 0) {
 		}
 	}
 
-	// 4) New values (one optional "new value" row per list level)
-	$new_values = GETPOST('new_value', 'array');
-	$new_descs  = GETPOST('new_desc', 'array');
+	// 4) New values (any number of JS-added rows per list level)
 	foreach ($current_levels as $level_id => $cfg) {
 		if ($cfg->datatype !== 'list') {
 			continue;
 		}
-		$value = isset($new_values[$level_id]) ? trim($new_values[$level_id]) : '';
-		if ($value === '') {
+		$new_values = GETPOST('new_value_'.$level_id, 'array');
+		$new_descs  = GETPOST('new_desc_'.$level_id, 'array');
+		if (!is_array($new_values) || empty($new_values)) {
 			continue;
 		}
 		$max_pos = 0;
 		foreach ($cfg->options as $opt) {
 			$max_pos = max($max_pos, $opt->position);
 		}
-		$desc = isset($new_descs[$level_id]) ? trim($new_descs[$level_id]) : '';
-		if ($optionObj->create($level_id, $value, $max_pos + 1, $user, $desc) <= 0) {
-			setEventMessages($cfg->label.' &mdash; '.dol_escape_htmltag($value).': '.$langs->trans($optionObj->error), null, 'errors');
-			$errors++;
+		foreach ($new_values as $idx => $value) {
+			$value = trim($value);
+			if ($value === '') {
+				continue;
+			}
+			$desc = isset($new_descs[$idx]) ? trim($new_descs[$idx]) : '';
+			$max_pos++;
+			if ($optionObj->create($level_id, $value, $max_pos, $user, $desc) <= 0) {
+				setEventMessages($cfg->label.' &mdash; '.dol_escape_htmltag($value).': '.$langs->trans($optionObj->error), null, 'errors');
+				$errors++;
+			}
 		}
 	}
 
@@ -253,6 +259,9 @@ if ($fk_entrepot > 0) {
 	print '<input type="hidden" name="token" value="'.newToken().'">';
 	print '<input type="hidden" name="action" value="savelevels">';
 	print '<input type="hidden" name="fk_entrepot" value="'.$fk_entrepot.'">';
+	// Default submit: Enter in any field must run the plain universal save,
+	// never the first named button in the form (a Disable/Delete toggle)
+	print '<button type="submit" class="binloc-default-submit" tabindex="-1" aria-hidden="true"></button>';
 
 	print '<table class="noborder centpercent" id="binloc-level-table">';
 	print '<tbody>';
@@ -365,17 +374,24 @@ if ($fk_entrepot > 0) {
 				print '</tr>';
 			}
 
-			// New-value row for this level
-			print '<tr class="oddeven">';
+			// New-value rows: one rendered server-side, more cloned by JS —
+			// no page reload needed to queue many values before one Save
+			print '<tbody class="binloc-new-values">';
+			print '<tr class="oddeven binloc-new-value-row">';
 			print '<td>';
-			print '<input type="text" name="new_value['.$level_id.']" class="flat width100" placeholder="'.dol_escape_htmltag($langs->trans('NewValue')).'">';
-			print ' <input type="text" name="new_desc['.$level_id.']" class="flat minwidth150" placeholder="'.dol_escape_htmltag($langs->trans('OptionDescription')).'" title="'.dol_escape_htmltag($langs->trans('OptionDescriptionHint')).'">';
+			print '<input type="text" name="new_value_'.$level_id.'[]" class="flat width100" placeholder="'.dol_escape_htmltag($langs->trans('NewValue')).'">';
+			print ' <input type="text" name="new_desc_'.$level_id.'[]" class="flat minwidth150" placeholder="'.dol_escape_htmltag($langs->trans('OptionDescription')).'" title="'.dol_escape_htmltag($langs->trans('OptionDescriptionHint')).'">';
 			print '</td>';
 			print '<td class="opacitymedium small">'.$langs->trans('NewValueSavedWithForm').'</td>';
 			print '<td></td>';
 			print '</tr>';
+			print '</tbody>';
 
 			print '</table>';
+			print '<div class="margintoponly">';
+			print '<a href="#" class="binloc-add-value smallpaddingimp">'.img_picto('', 'add', 'class="pictofixedwidth"').$langs->trans('AddValue').'</a>';
+			print ' <span class="opacitymedium small">'.$langs->trans('AddValueEnterHint').'</span>';
+			print '</div>';
 			print '</div>';
 		}
 	}
@@ -439,6 +455,30 @@ jQuery(function ($) {
 	});
 
 	renumber();
+
+	// New-value rows: clone the empty server-rendered row — as many values as
+	// needed queue up client-side and persist together on Save
+	function addValueRow($card) {
+		var $tbody = $card.find("tbody.binloc-new-values");
+		var $clone = $tbody.find("tr.binloc-new-value-row").last().clone();
+		$clone.find("input").val("");
+		$tbody.append($clone);
+		$clone.find("input").first().focus();
+	}
+
+	$(document).on("click", ".binloc-add-value", function (e) {
+		e.preventDefault();
+		addValueRow($(this).closest(".binloc-card"));
+	});
+
+	// Enter inside a new-value row starts the next row instead of submitting,
+	// so long value lists can be typed value-Enter-value-Enter, then one Save
+	$(document).on("keydown", ".binloc-new-values input", function (e) {
+		if (e.key === "Enter" || e.which === 13) {
+			e.preventDefault();
+			addValueRow($(this).closest(".binloc-card"));
+		}
+	});
 });
 </script>';
 }

@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.6.0] - 2026-09-09
+
+### Changed
+- **Warehouse Levels: add many values without reloads.** Each dropdown level's card has an "Add value" action that appends new value+description rows client-side; pressing Enter in a new-value field starts the next row. Any number of queued values are created together on the one universal Save — setting up a level with dozens of bins is now type-Enter-type-Enter, one Save, one page load.
+
+### Fixed
+- Pressing Enter in any field on Warehouse Levels could trigger the first Disable button in the form (the browser's implicit submission picks the first submit button) — toggling a value nobody touched. Enter now performs the plain universal save.
+
 ## [2.5.0] - 2026-09-09
 
 ### Added

@@ -96,6 +96,17 @@
 	margin-bottom: 8px;
 }
 
+/* Invisible first submit so Enter runs the plain universal save, never a
+   named Disable/Delete button (implicit submission uses the first button) */
+.binloc-default-submit {
+	position: absolute;
+	left: -9999px;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	border: 0;
+}
+
 .binloc-label-settings summary {
 	cursor: pointer;
 }

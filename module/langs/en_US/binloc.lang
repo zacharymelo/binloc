@@ -82,6 +82,8 @@ UsedByNLocations = used by %s location(s)
 ShowLocationsUsingValue = Show the bin locations using this value
 NewValue = New value
 NewValueSavedWithForm = added on Save
+AddValue = Add value
+AddValueEnterHint = Tip: press Enter in a new-value field to start the next one — everything is created together on Save
 TargetWarehouseHasLevels = The target warehouse already has levels configured — remove them first to copy
 
 #
