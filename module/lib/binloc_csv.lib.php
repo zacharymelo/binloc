@@ -20,6 +20,7 @@
  * report planned actions) and apply (same logic executed in a transaction).
  */
 
+dol_include_once('/binloc/lib/binloc.lib.php');
 dol_include_once('/binloc/class/binlocwarehouselevel.class.php');
 dol_include_once('/binloc/class/binloclevaloption.class.php');
 dol_include_once('/binloc/class/binlocproductlocation.class.php');
@@ -143,7 +144,17 @@ function binloc_layout_export_lines($db, $fk_entrepot = 0)
 					$values[] = $opt->value;
 				}
 			}
-			$lines[] = array($obj->ref, $num, $cfg->label, $cfg->datatype, implode('|', $values));
+			// Letter levels that are a clean, gapless A..end sequence export as
+			// just "end" (the shorthand binloc_layout_import_run() re-expands) —
+			// far more readable/editable than spelling out 26+ codes in a cell
+			$cell = implode('|', $values);
+			if ($cfg->datatype === 'letter' && !empty($values)) {
+				$end = end($values);
+				if (binloc_letter_sequence($end) === $values) {
+					$cell = $end;
+				}
+			}
+			$lines[] = array($obj->ref, $num, $cfg->label, $cfg->datatype, $cell);
 		}
 	}
 	$db->free($resql);
@@ -185,6 +196,17 @@ function binloc_layout_import_run($db, $parsed, $user, $commit = false)
 		$label    = isset($cells[2]) ? $cells[2] : '';
 		$type     = isset($cells[3]) ? strtolower($cells[3]) : 'text';
 		$values   = (isset($cells[4]) && $cells[4] !== '') ? array_map('trim', explode('|', $cells[4])) : array();
+		// Letter shorthand: a single token (no "|") that looks like a letter code
+		// (e.g. "Z" or "AC") means "generate the whole A..that range", exactly
+		// like the Generate button — the common case, since typing all 26+
+		// codes by hand in a spreadsheet cell defeats the point of the type.
+		// A pipe-separated list is always taken literally, for both types.
+		if ($type === 'letter' && count($values) === 1) {
+			$sequence = binloc_letter_sequence($values[0]);
+			if (!empty($sequence)) {
+				$values = $sequence;
+			}
+		}
 
 		if ($wh_ref === '' && $label === '') {
 			continue;

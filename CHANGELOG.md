@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.8.0] - 2026-09-09
+
+### Fixed
+- **Critical: "Save All" on the bulk assignment table (and any bulk-table page) returned a 500 error for every save, regardless of warehouse or level type.** Introduced in 2.7.0: `BinlocProductLocation::setRawValue()` started calling a helper defined in `lib/binloc.lib.php`, but `ajax/batch_save.php` never loaded that file — a fatal "call to undefined function" before any row was processed. The single-item quick-assign path was unaffected because it already loaded the file. Fixed by including it where it's used, and — to close this class of bug for good — `binlocproductlocation.class.php` and `lib/binloc_csv.lib.php` now load their own dependency instead of relying on whichever page happens to include them first.
+
+### Added
+- **CSV import/export understands letter ranges.** For a `letter`-type level, put a single end code in the `allowed_values` cell (e.g. `Z`, or `AC` to go past Z) to generate the whole A..end range from one row — exactly what the "Generate" button does, but usable from a spreadsheet. A pipe-separated list (`A|C|E`) is still taken literally, for both letter and dropdown levels. Layout export is symmetric: a level whose active values are a clean, gapless A..end sequence exports as the compact end-code shorthand instead of spelling out 26+ values, so an exported file both round-trips and doubles as a readable example of the syntax; any gap or reordering falls back to the full explicit list.
+
 ## [2.7.0] - 2026-09-09
 
 ### Added

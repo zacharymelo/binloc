@@ -28,6 +28,7 @@ if (!$res && file_exists("../../main.inc.php")) { $res = @include "../../main.in
 if (!$res && file_exists("../../../main.inc.php")) { $res = @include "../../../main.inc.php"; }
 if (!$res) { die("Include of main fails"); }
 
+dol_include_once('/binloc/lib/binloc.lib.php');
 dol_include_once('/binloc/lib/binloc_ajax.lib.php');
 dol_include_once('/binloc/class/binlocwarehouselevel.class.php');
 dol_include_once('/binloc/class/binlocproductlocation.class.php');
