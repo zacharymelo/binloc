@@ -64,7 +64,7 @@ function binloc_print_assets()
 	}
 	$printed = true;
 
-	$v = '2.6.0';
+	$v = '2.7.0';
 	print '<link rel="stylesheet" href="'.dol_buildpath('/binloc/css/binloc.css', 1).'?v='.$v.'">'."\n";
 	print '<script src="'.dol_buildpath('/binloc/js/binloc.js', 1).'?v='.$v.'"></script>'."\n";
 	print '<script>Binloc.init({ajaxBase: "'.dol_escape_js(dol_buildpath('/binloc/ajax/', 1)).'", token: "'.newToken().'"});</script>'."\n";
@@ -83,6 +83,63 @@ function binloc_get_warehouse_levels($db, $fk_entrepot)
 
 	$lvl = new BinlocWarehouseLevel($db);
 	return $lvl->fetchByWarehouse($fk_entrepot);
+}
+
+/**
+ * Whether a level's values are backed by option rows (rowid-referenced,
+ * renameable, disableable) rather than a raw text/number string. Both
+ * 'list' (hand-typed values) and 'letter' (A..Z / AA..ZZ, generated) use the
+ * same llx_binloc_level_options storage and the same select-based input.
+ *
+ * @param  string $datatype Level datatype
+ * @return bool
+ */
+function binloc_datatype_has_options($datatype)
+{
+	return in_array($datatype, array('list', 'letter'), true);
+}
+
+/**
+ * Convert a 1-based index to a spreadsheet-style column code: 1=A, 26=Z,
+ * 27=AA, 28=AB, ... 702=ZZ (bijective base-26)
+ *
+ * @param  int $n 1-based index
+ * @return string
+ */
+function binloc_letter_code($n)
+{
+	$code = '';
+	while ($n > 0) {
+		$n--;
+		$code = chr(65 + ($n % 26)).$code;
+		$n = intdiv($n, 26);
+	}
+	return $code;
+}
+
+/**
+ * Sequence of letter codes from A up to and including $end, in spreadsheet
+ * order (A, B, ... Z, AA, AB, ...). $end must be 1-2 letters (A-Z or AA-ZZ).
+ *
+ * @param  string $end End code, e.g. "Z" or "AZ" (case-insensitive)
+ * @return string[]    Empty array if $end doesn't match the expected pattern
+ */
+function binloc_letter_sequence($end)
+{
+	$end = strtoupper(trim((string) $end));
+	if (!preg_match('/^[A-Z]{1,2}$/', $end)) {
+		return array();
+	}
+
+	$end_n = (dol_strlen($end) === 1)
+		? (ord($end[0]) - 64)
+		: ((ord($end[0]) - 64) * 26 + (ord($end[1]) - 64));
+
+	$out = array();
+	for ($i = 1; $i <= $end_n; $i++) {
+		$out[] = binloc_letter_code($i);
+	}
+	return $out;
 }
 
 /**
@@ -115,7 +172,7 @@ function binloc_render_level_input($level_cfg, $prefix = '', $current = null, $c
 	$attrs = ' data-level="'.(int) $level_cfg->id.'" data-datatype="'.dol_escape_htmltag($datatype).'"';
 	$attrs .= ($extra_attrs !== '' ? ' '.$extra_attrs : '');
 
-	if ($datatype === 'list') {
+	if (binloc_datatype_has_options($datatype)) {
 		$current_opt = ($current && !empty($current->fk_option)) ? (int) $current->fk_option : 0;
 		$html = '<select name="'.dol_escape_htmltag($input_name).'" class="'.dol_escape_htmltag($css_class).'" aria-label="'.dol_escape_htmltag($label).'"'.$attrs.'>';
 		$html .= '<option value="">'.dol_escape_htmltag($label).'…</option>';
@@ -177,7 +234,7 @@ function binloc_render_level_legend($level_cfgs)
 
 	$groups = array();
 	foreach ($level_cfgs as $cfg) {
-		if ($cfg->datatype !== 'list') {
+		if (!binloc_datatype_has_options($cfg->datatype)) {
 			continue;
 		}
 		$pairs = array();

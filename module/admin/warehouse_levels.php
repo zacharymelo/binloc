@@ -133,9 +133,9 @@ if ($action === 'savelevels' && $fk_entrepot > 0) {
 		}
 	}
 
-	// 4) New values (any number of JS-added rows per list level)
+	// 4) New values (any number of JS-added rows per list/letter level)
 	foreach ($current_levels as $level_id => $cfg) {
-		if ($cfg->datatype !== 'list') {
+		if (!binloc_datatype_has_options($cfg->datatype)) {
 			continue;
 		}
 		$new_values = GETPOST('new_value_'.$level_id, 'array');
@@ -158,6 +158,38 @@ if ($action === 'savelevels' && $fk_entrepot > 0) {
 				setEventMessages($cfg->label.' &mdash; '.dol_escape_htmltag($value).': '.$langs->trans($optionObj->error), null, 'errors');
 				$errors++;
 			}
+		}
+	}
+
+	// 4b) Generate a letter range (named submit; letter levels only) — fills
+	// in any codes from A up to the requested end that don't already exist,
+	// in one step instead of typing each one
+	$generate_level_id = GETPOSTINT('generateletters');
+	if ($generate_level_id > 0 && isset($current_levels[$generate_level_id]) && $current_levels[$generate_level_id]->datatype === 'letter') {
+		$cfg = $current_levels[$generate_level_id];
+		$upto = GETPOST('generate_upto_'.$generate_level_id, 'alphanohtml');
+		$codes = binloc_letter_sequence($upto);
+		if (empty($codes)) {
+			setEventMessages($cfg->label.': '.$langs->trans('InvalidLetterRange'), null, 'errors');
+			$errors++;
+		} else {
+			$existing_values = array();
+			$max_pos = 0;
+			foreach ($cfg->options as $opt) {
+				$existing_values[strtoupper($opt->value)] = true;
+				$max_pos = max($max_pos, $opt->position);
+			}
+			$created = 0;
+			foreach ($codes as $code) {
+				if (isset($existing_values[$code])) {
+					continue;
+				}
+				$max_pos++;
+				if ($optionObj->create($generate_level_id, $code, $max_pos, $user) > 0) {
+					$created++;
+				}
+			}
+			setEventMessages($cfg->label.': '.$langs->trans('LettersGenerated', $created), null, 'mesgs');
 		}
 	}
 
@@ -287,6 +319,7 @@ if ($fk_entrepot > 0) {
 		print '<option value="text"'.($cfg->datatype === 'text' ? ' selected' : '').'>'.$langs->trans('TypeText').'</option>';
 		print '<option value="number"'.($cfg->datatype === 'number' ? ' selected' : '').'>'.$langs->trans('TypeNumber').'</option>';
 		print '<option value="list"'.($cfg->datatype === 'list' ? ' selected' : '').'>'.$langs->trans('TypeList').'</option>';
+		print '<option value="letter"'.($cfg->datatype === 'letter' ? ' selected' : '').'>'.$langs->trans('TypeLetter').'</option>';
 		print '</select>';
 		print '</td>';
 		print '<td>'.($cfg->active ? '' : '<span class="opacitymedium binloc-legacy">'.$langs->trans('Disabled').'</span>').'</td>';
@@ -311,6 +344,7 @@ if ($fk_entrepot > 0) {
 	print '<option value="text">'.$langs->trans('TypeText').'</option>';
 	print '<option value="number">'.$langs->trans('TypeNumber').'</option>';
 	print '<option value="list">'.$langs->trans('TypeList').'</option>';
+	print '<option value="letter">'.$langs->trans('TypeLetter').'</option>';
 	print '</select>';
 	print '</td>';
 	print '<td></td>';
@@ -328,10 +362,11 @@ if ($fk_entrepot > 0) {
 	print '</a>';
 	print '</div>';
 
-	// ---- Options sub-editor for list-type levels (same form) ----
+	// ---- Options sub-editor for list AND letter levels (same form) — both
+	// store their values as rows in the same options table ----
 	$list_levels = array();
 	foreach ($current_levels as $level_id => $cfg) {
-		if ($cfg->datatype === 'list') {
+		if (binloc_datatype_has_options($cfg->datatype)) {
 			$list_levels[$level_id] = $cfg;
 		}
 	}
@@ -347,6 +382,19 @@ if ($fk_entrepot > 0) {
 				print ' <span class="opacitymedium binloc-legacy">('.$langs->trans('Disabled').')</span>';
 			}
 			print '</div>';
+
+			if ($cfg->datatype === 'letter') {
+				// Generate A..Z (optionally into AA..ZZ) instead of typing each one.
+				// A named submit of the SAME universal form: pending edits elsewhere
+				// on the page are saved first, then the range is generated.
+				print '<div class="binloc-inline-form marginbottomonly">';
+				print '<label>'.$langs->trans('GenerateUpTo').' ';
+				print '<input type="text" name="generate_upto_'.$level_id.'" class="flat width50" maxlength="2" placeholder="Z" title="'.dol_escape_htmltag($langs->trans('GenerateUpToHint')).'">';
+				print '</label>';
+				print ' <button type="submit" name="generateletters" value="'.$level_id.'" class="button smallpaddingimp">'.dol_escape_htmltag($langs->trans('GenerateLetters')).'</button>';
+				print ' <span class="opacitymedium small">'.$langs->trans('GenerateUpToHint').'</span>';
+				print '</div>';
+			}
 
 			print '<table class="noborder">';
 			foreach ($cfg->options as $opt) {

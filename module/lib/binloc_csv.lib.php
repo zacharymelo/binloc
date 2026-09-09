@@ -198,7 +198,7 @@ function binloc_layout_import_run($db, $parsed, $user, $commit = false)
 			$report['errors'][] = $langs->trans('CsvBadLabel', $line);
 			continue;
 		}
-		if (!in_array($type, array('text', 'number', 'list'), true)) {
+		if (!in_array($type, array('text', 'number', 'list', 'letter'), true)) {
 			$report['errors'][] = $langs->trans('CsvBadType', $line, $cells[3]);
 			continue;
 		}
@@ -270,7 +270,7 @@ function binloc_layout_import_run($db, $parsed, $user, $commit = false)
 
 		// Allowed values: add missing (matched case-insensitively), never remove
 		foreach ($data['levels'] as $lvl) {
-			if ($lvl['type'] !== 'list' || empty($lvl['values'])) {
+			if (!in_array($lvl['type'], array('list', 'letter'), true) || empty($lvl['values'])) {
 				continue;
 			}
 			$match = isset($by_label[strtolower($lvl['label'])]) ? $by_label[strtolower($lvl['label'])] : null;
@@ -475,7 +475,7 @@ function binloc_assign_import_run($db, $fk_entrepot, $parsed, $create_missing, $
 				continue;
 			}
 
-			if ($cfg->datatype === 'list') {
+			if (binloc_datatype_has_options($cfg->datatype)) {
 				$opt_id = 0;
 				foreach ($cfg->options as $opt) {
 					if (strtolower($opt->value) === strtolower($value)) {

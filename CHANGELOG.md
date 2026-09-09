@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.7.0] - 2026-09-09
+
+### Added
+- **Letter level type** ("Letter (A-Z)" alongside Text/Number/Dropdown on Warehouse Levels): a new datatype for levels whose values are letter codes. A "Generate letters up to:" control creates any missing codes from A up to the requested end in one step — a single letter (e.g. `Z`) generates A-Z, a double letter (e.g. `AC`) extends past Z into AA, AB, AC. Existing codes are never touched or duplicated, so the range can be extended later. Generated letters are ordinary values underneath — each still gets its own optional description (e.g. "AC = Cold aisle overflow"), rename, disable, and delete-if-unused, and Generate is a named submit of the same universal form, so it saves any pending edits first. Letter levels work everywhere a Dropdown level does: bin assignment inputs, warehouse-tab and label filters, the Key legend, bin codes and label sub-bin grouping, and CSV layout/assignment import-export.
+
 ## [2.6.0] - 2026-09-09
 
 ### Changed

@@ -70,8 +70,9 @@ class BinlocProductLocation extends CommonObject
 	 * Set the value of one level from raw user input, validating against the
 	 * level's configuration.
 	 *
-	 * For list levels $raw is the selected option rowid; for text/number
-	 * levels it is the entered string. An empty $raw clears the level.
+	 * For list and letter levels $raw is the selected option rowid; for
+	 * text/number levels it is the entered string. An empty $raw clears the
+	 * level.
 	 *
 	 * @param  stdClass $cfg Level config from BinlocWarehouseLevel::fetchByWarehouse
 	 * @param  mixed    $raw Raw input
@@ -80,8 +81,9 @@ class BinlocProductLocation extends CommonObject
 	public function setRawValue($cfg, $raw)
 	{
 		$level_id = (int) $cfg->id;
+		$has_options = binloc_datatype_has_options($cfg->datatype);
 
-		if ($raw === null || $raw === '' || ($cfg->datatype === 'list' && (int) $raw === 0)) {
+		if ($raw === null || $raw === '' || ($has_options && (int) $raw === 0)) {
 			unset($this->values[$level_id]);
 			return 1;
 		}
@@ -90,7 +92,7 @@ class BinlocProductLocation extends CommonObject
 		$entry->fk_option = null;
 		$entry->value = null;
 
-		if ($cfg->datatype === 'list') {
+		if ($has_options) {
 			$opt_id = (int) $raw;
 			$match = null;
 			foreach ($cfg->options as $opt) {

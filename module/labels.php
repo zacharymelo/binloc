@@ -84,7 +84,7 @@ foreach ($wh_levels as $level_id => $cfg) {
 	}
 	$level_filter_raw[$level_id] = $raw;
 	$filter_param .= '&search_level'.$level_id.'='.urlencode($raw);
-	if ($cfg->datatype === 'list') {
+	if (binloc_datatype_has_options($cfg->datatype)) {
 		$level_filters[] = array('fk_level' => $level_id, 'fk_option' => (int) $raw);
 	} else {
 		$level_filters[] = array('fk_level' => $level_id, 'value' => $raw);
@@ -269,7 +269,7 @@ if ($output === 'print' && $fk_entrepot > 0) {
 	print '<html><head>'."\n";
 	print '<meta charset="utf-8">'."\n";
 	print '<title>'.dol_escape_htmltag($langs->trans('BinLabels')).'</title>'."\n";
-	print '<link rel="stylesheet" href="'.$css_url.'?v=2.6.0">'."\n";
+	print '<link rel="stylesheet" href="'.$css_url.'?v=2.7.0">'."\n";
 	print '<style>body { margin: '.binloc_css_num($layout->sheet_margin_mm).'mm; font-family: sans-serif; } .binloc-legend { font-size: 0.85em; margin-bottom: 2mm; }</style>'."\n";
 	print binloc_label_layout_css($layout);
 	print '</head><body class="binloc-print-body">'."\n";
@@ -320,7 +320,7 @@ if ($fk_entrepot > 0) {
 		print '<input type="text" name="search_product" class="flat minwidth200" value="'.dol_escape_htmltag($search).'" placeholder="'.dol_escape_htmltag($langs->trans('SearchProduct')).'">';
 		foreach ($wh_levels as $level_id => $cfg) {
 			$raw = isset($level_filter_raw[$level_id]) ? $level_filter_raw[$level_id] : '';
-			if ($cfg->datatype === 'list') {
+			if (binloc_datatype_has_options($cfg->datatype)) {
 				print ' <select name="search_level'.$level_id.'" class="flat" aria-label="'.dol_escape_htmltag($cfg->label).'">';
 				print '<option value="">'.dol_escape_htmltag($cfg->label).'…</option>';
 				foreach ($cfg->options as $opt) {

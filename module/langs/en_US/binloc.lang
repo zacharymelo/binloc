@@ -70,6 +70,7 @@ SerialLocationCleared = Serial location cleared (stock moved out)
 TypeText = Text
 TypeNumber = Number
 TypeList = Dropdown
+TypeLetter = Letter (A-Z)
 ListValues = Allowed Values
 ListValuesRenameHint = Renaming a value here updates every existing bin location that uses it. Values in use cannot be deleted — disable them instead to hide them from new input while keeping existing assignments readable. Keep values short (they build the bin name) and put the full meaning in the description, e.g. "L" = "Left Rack".
 OptionAdded = Value added
@@ -84,6 +85,11 @@ NewValue = New value
 NewValueSavedWithForm = added on Save
 AddValue = Add value
 AddValueEnterHint = Tip: press Enter in a new-value field to start the next one — everything is created together on Save
+GenerateLetters = Generate
+GenerateUpTo = Generate letters up to:
+GenerateUpToHint = A single letter (e.g. Z) generates A-Z. A double letter (e.g. AM) extends past Z into AA, AB, ... up to that code. Existing values are kept — this only adds what's missing.
+InvalidLetterRange = Enter a valid end letter: a single letter A-Z, or two letters AA-ZZ
+LettersGenerated = %s letter(s) added
 TargetWarehouseHasLevels = The target warehouse already has levels configured — remove them first to copy
 
 #
@@ -185,7 +191,7 @@ BinlocHelpMissing = The bundled user guide file (docs/USER-GUIDE.md) is missing 
 CsvImportExport = Import/Export
 CsvPageDesc = CSV round-trip for spreadsheet workflows (Google Sheets, Excel): export, edit, download as CSV, import. Imports show a preview of every planned change before anything is written, and apply all-or-nothing.
 CsvLayoutSection = Warehouse layout (levels and allowed values)
-CsvLayoutDesc = Columns: warehouse; level; label; type (text/number/list); allowed_values (pipe-separated, e.g. A|B|C). One row per level. Import matches levels by label, creates new ones, adds missing allowed values — it never deletes anything.
+CsvLayoutDesc = Columns: warehouse; level; label; type (text/number/list/letter); allowed_values (pipe-separated, e.g. A|B|C). One row per level. Import matches levels by label, creates new ones, adds missing allowed values — it never deletes anything.
 CsvAssignSection = Bin assignments (product → bin)
 CsvAssignDesc = Per warehouse. Columns: product; product_label (ignored); lot; one column per level label; note. Level columns present in the file are authoritative — an empty cell clears that level, a fully empty row removes the assignment. Rows are matched on product ref + lot.
 CsvExportAllLayouts = Export all layouts (CSV)
@@ -202,7 +208,7 @@ CsvUploadFailed = Upload failed or the file could not be parsed
 CsvBadHeader = Bad header: expected "%s", got "%s"
 CsvUnknownWarehouse = Line %s: unknown warehouse "%s"
 CsvBadLabel = Line %s: missing or too long label
-CsvBadType = Line %s: bad type "%s" (use text, number or list)
+CsvBadType = Line %s: bad type "%s" (use text, number, list or letter)
 CsvUnknownColumn = Unknown column "%s" — it does not match any level of this warehouse
 CsvMissingProductColumn = The file has no "product" column
 CsvUnknownProduct = Line %s: unknown product ref "%s"

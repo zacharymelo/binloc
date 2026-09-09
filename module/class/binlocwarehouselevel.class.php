@@ -31,7 +31,7 @@ class BinlocWarehouseLevel extends CommonObject
 	/** @var string */
 	public $label;
 
-	/** @var string Input type: 'text' | 'number' | 'list' */
+	/** @var string Input type: 'text' | 'number' | 'list' | 'letter' */
 	public $datatype = 'text';
 
 	/** @var int Display order */
@@ -66,7 +66,7 @@ class BinlocWarehouseLevel extends CommonObject
 	{
 		$now = dol_now();
 
-		$datatype = in_array($this->datatype, array('text', 'number', 'list'), true) ? $this->datatype : 'text';
+		$datatype = in_array($this->datatype, array('text', 'number', 'list', 'letter'), true) ? $this->datatype : 'text';
 
 		$sql = "INSERT INTO ".MAIN_DB_PREFIX.$this->table_element." (";
 		$sql .= "entity, fk_entrepot, level_num, label, datatype, position, active, date_creation, fk_user_creat";
@@ -101,7 +101,7 @@ class BinlocWarehouseLevel extends CommonObject
 	 * is an stdClass with:
 	 *   - id       (int, level rowid)
 	 *   - label    (string)
-	 *   - datatype ('text' | 'number' | 'list')
+	 *   - datatype ('text' | 'number' | 'list' | 'letter')
 	 *   - position (int)
 	 *   - active   (int)
 	 *   - options  (array of stdClass {id, value, description, position, active}, ALL options
@@ -159,7 +159,7 @@ class BinlocWarehouseLevel extends CommonObject
 				$cfg = new stdClass();
 				$cfg->id       = $lid;
 				$cfg->label    = $obj->label;
-				$cfg->datatype = in_array($obj->datatype, array('text', 'number', 'list'), true) ? $obj->datatype : 'text';
+				$cfg->datatype = in_array($obj->datatype, array('text', 'number', 'list', 'letter'), true) ? $obj->datatype : 'text';
 				$cfg->position = (int) $obj->position;
 				$cfg->active   = (int) $obj->active;
 				$cfg->options  = array();
@@ -234,7 +234,7 @@ class BinlocWarehouseLevel extends CommonObject
 	 * Each row of $rows: array(
 	 *   'id'       => existing level rowid, or 0 for a new level,
 	 *   'label'    => string,
-	 *   'datatype' => 'text'|'number'|'list',
+	 *   'datatype' => 'text'|'number'|'list'|'letter',
 	 *   'position' => int display order,
 	 * )
 	 * Existing levels missing from $rows are soft-deactivated when still
@@ -256,7 +256,7 @@ class BinlocWarehouseLevel extends CommonObject
 		foreach ($rows as $row) {
 			$id       = isset($row['id']) ? (int) $row['id'] : 0;
 			$label    = isset($row['label']) ? trim($row['label']) : '';
-			$datatype = (isset($row['datatype']) && in_array($row['datatype'], array('text', 'number', 'list'), true)) ? $row['datatype'] : 'text';
+			$datatype = (isset($row['datatype']) && in_array($row['datatype'], array('text', 'number', 'list', 'letter'), true)) ? $row['datatype'] : 'text';
 			$position = isset($row['position']) ? (int) $row['position'] : 0;
 
 			if ($label === '') {
