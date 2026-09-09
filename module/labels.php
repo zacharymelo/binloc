@@ -36,9 +36,39 @@ if (!$user->hasRight('binloc', 'read')) {
 $fk_entrepot = GETPOSTINT('fk_entrepot');
 $search      = GETPOST('search_product', 'alphanohtml');
 $output      = GETPOST('output', 'aZ09');
+$action      = GETPOST('action', 'aZ09');
+
+$can_admin = ($user->admin || $user->hasRight('binloc', 'admin'));
 
 $levelObj = new BinlocWarehouseLevel($db);
 $locObj   = new BinlocProductLocation($db);
+
+// ---- Save per-warehouse label layout (settings panel) ----
+if ($action === 'savelayout' && $fk_entrepot > 0) {
+	if (!$can_admin) {
+		accessforbidden();
+	}
+	$layout = binloc_label_layout_defaults();
+	$numeric_fields = array('width_mm', 'height_mm', 'pad_top_mm', 'pad_right_mm', 'pad_bottom_mm', 'pad_left_mm', 'font_pt', 'border_mm', 'sheet_margin_mm');
+	foreach ($numeric_fields as $key) {
+		$posted = GETPOST('layout_'.$key, 'alphanohtml');
+		if ($posted !== '') {
+			$layout->$key = (float) price2num($posted);
+		}
+	}
+	$layout->code_sep           = GETPOST('layout_code_sep', 'alphanohtml');
+	$layout->sub_level          = GETPOSTINT('layout_sub_level');
+	$layout->show_batch         = GETPOST('layout_show_batch', 'aZ09') ? 1 : 0;
+	$layout->show_product_label = GETPOST('layout_show_product_label', 'aZ09') ? 1 : 0;
+	if (binloc_save_label_layout($db, $fk_entrepot, $layout) > 0) {
+		setEventMessages($langs->trans('LabelLayoutSaved'), null, 'mesgs');
+	} else {
+		setEventMessages($db->lasterror(), null, 'errors');
+	}
+	$action = '';
+}
+
+$layout = ($fk_entrepot > 0) ? binloc_get_label_layout($db, $fk_entrepot) : binloc_label_layout_defaults();
 
 $wh_levels = ($fk_entrepot > 0) ? $levelObj->fetchByWarehouse($fk_entrepot) : array();
 
@@ -64,21 +94,29 @@ foreach ($wh_levels as $level_id => $cfg) {
 /**
  * Group assignment rows into distinct bins.
  *
- * The label is stuck on the parent bin, so when the warehouse has two or more
- * levels the deepest one (e.g. "Bag") acts as the sub-bin: it is excluded from
- * the bin identity/code, and contents are grouped under one heading per
- * sub-bin value instead. Rows with no parent-level values fall back to keying
- * on their sub value alone so no assignment silently disappears.
+ * The label is stuck on the parent bin, so one level acts as the sub-bin
+ * (e.g. "Bag"): it is excluded from the bin identity/code, and contents are
+ * grouped under one heading per sub-bin value instead. Which level that is
+ * comes from the layout: 0 = the deepest level (only when the warehouse has
+ * two or more), -1 = no sub-bin split, >0 = that level rowid. Rows with no
+ * parent-level values fall back to keying on their sub value alone so no
+ * assignment silently disappears.
  *
- * @param  array $locations Rows from fetchAllByWarehouse (values attached)
- * @param  array $wh_levels Level configs keyed by rowid, position order
- * @return array            Bin objects {code, items: [{ref, label, batch}],
- *                          subbins: [{title, description, items}]}, sorted by code
+ * @param  array    $locations Rows from fetchAllByWarehouse (values attached)
+ * @param  array    $wh_levels Level configs keyed by rowid, position order
+ * @param  stdClass $layout    Label layout (sub_level, code_sep)
+ * @return array               Bin objects {code, items: [{ref, label, batch}],
+ *                             subbins: [{title, description, items}]}, sorted by code
  */
-function binloc_labels_group_bins($locations, $wh_levels)
+function binloc_labels_group_bins($locations, $wh_levels, $layout)
 {
-	$level_ids = array_keys($wh_levels);
-	$sub_level_id = (count($level_ids) >= 2) ? (int) end($level_ids) : 0;
+	$sub_level_id = 0;
+	if ((int) $layout->sub_level > 0 && isset($wh_levels[(int) $layout->sub_level])) {
+		$sub_level_id = (int) $layout->sub_level;
+	} elseif ((int) $layout->sub_level === 0 && count($wh_levels) >= 2) {
+		$level_ids = array_keys($wh_levels);
+		$sub_level_id = (int) end($level_ids);
+	}
 
 	$bins = array();
 
@@ -117,7 +155,7 @@ function binloc_labels_group_bins($locations, $wh_levels)
 		$key = implode('|', $key_parts);
 		if (!isset($bins[$key])) {
 			$bin = new stdClass();
-			$bin->code    = implode('', $code_parts);
+			$bin->code    = implode((string) $layout->code_sep, $code_parts);
 			$bin->items   = array();
 			$bin->subbins = array();
 			$bins[$key] = $bin;
@@ -159,18 +197,19 @@ function binloc_labels_group_bins($locations, $wh_levels)
 /**
  * Render one item list (shared by the loose-items and sub-bin sections)
  *
- * @param  array $items Item objects {ref, label, batch}
- * @return string       HTML <ul>
+ * @param  array    $items  Item objects {ref, label, batch}
+ * @param  stdClass $layout Label layout (show_batch, show_product_label)
+ * @return string           HTML <ul>
  */
-function binloc_labels_render_items($items)
+function binloc_labels_render_items($items, $layout)
 {
 	$html = '<ul>';
 	foreach ($items as $item) {
 		$html .= '<li><strong>'.dol_escape_htmltag($item->ref).'</strong>';
-		if ($item->label !== '' && $item->label !== null) {
+		if (!empty($layout->show_product_label) && $item->label !== '' && $item->label !== null) {
 			$html .= ' &mdash; '.dol_escape_htmltag($item->label);
 		}
-		if ($item->batch !== '') {
+		if (!empty($layout->show_batch) && $item->batch !== '') {
 			$html .= ' <span class="binloc-label-batch">['.dol_escape_htmltag($item->batch).']</span>';
 		}
 		$html .= '</li>';
@@ -184,10 +223,11 @@ function binloc_labels_render_items($items)
  * No per-level breakdown — the bin code already carries it; the Key legend
  * explains the codes once per page instead of once per label.
  *
- * @param  array $bins Bin objects from binloc_labels_group_bins
- * @return string      HTML
+ * @param  array    $bins   Bin objects from binloc_labels_group_bins
+ * @param  stdClass $layout Label layout
+ * @return string           HTML
  */
-function binloc_labels_render_cards($bins)
+function binloc_labels_render_cards($bins, $layout)
 {
 	global $langs;
 
@@ -198,7 +238,7 @@ function binloc_labels_render_cards($bins)
 		$html .= '<div class="binloc-label-items">';
 		$html .= '<div class="binloc-label-items-title">'.$langs->trans('BinContents').'</div>';
 		if (!empty($bin->items)) {
-			$html .= binloc_labels_render_items($bin->items);
+			$html .= binloc_labels_render_items($bin->items, $layout);
 		}
 		foreach ($bin->subbins as $sub) {
 			$html .= '<div class="binloc-label-subbin"><strong>'.dol_escape_htmltag($sub->title).'</strong>';
@@ -206,7 +246,7 @@ function binloc_labels_render_cards($bins)
 				$html .= ' <span class="binloc-label-desc">('.dol_escape_htmltag($sub->description).')</span>';
 			}
 			$html .= '</div>';
-			$html .= binloc_labels_render_items($sub->items);
+			$html .= binloc_labels_render_items($sub->items, $layout);
 		}
 		$html .= '</div>';
 		$html .= '</div>';
@@ -218,7 +258,7 @@ function binloc_labels_render_cards($bins)
 $bins = array();
 if ($fk_entrepot > 0 && !empty($wh_levels)) {
 	$locations = $locObj->fetchAllByWarehouse($fk_entrepot, $search, 'p.ref', 'ASC', 0, 0, $level_filters);
-	$bins = binloc_labels_group_bins($locations, $wh_levels);
+	$bins = binloc_labels_group_bins($locations, $wh_levels, $layout);
 }
 
 // ---- PRINT OUTPUT: standalone chrome-less document ----
@@ -229,14 +269,15 @@ if ($output === 'print' && $fk_entrepot > 0) {
 	print '<html><head>'."\n";
 	print '<meta charset="utf-8">'."\n";
 	print '<title>'.dol_escape_htmltag($langs->trans('BinLabels')).'</title>'."\n";
-	print '<link rel="stylesheet" href="'.$css_url.'?v=2.4.0">'."\n";
-	print '<style>body { margin: 10mm; font-family: sans-serif; } .binloc-legend { font-size: 0.85em; margin-bottom: 8px; }</style>'."\n";
+	print '<link rel="stylesheet" href="'.$css_url.'?v=2.5.0">'."\n";
+	print '<style>body { margin: '.binloc_css_num($layout->sheet_margin_mm).'mm; font-family: sans-serif; } .binloc-legend { font-size: 0.85em; margin-bottom: 2mm; }</style>'."\n";
+	print binloc_label_layout_css($layout);
 	print '</head><body class="binloc-print-body">'."\n";
 	if (empty($bins)) {
 		print '<p>'.$langs->trans('NoBinsMatch').'</p>';
 	} else {
 		print binloc_render_level_legend($wh_levels);
-		print binloc_labels_render_cards($bins);
+		print binloc_labels_render_cards($bins, $layout);
 	}
 	print '<script>window.addEventListener("load", function () { window.print(); });</script>'."\n";
 	print '</body></html>';
@@ -300,6 +341,65 @@ if ($fk_entrepot > 0) {
 		print '</div>';
 		print '</form>';
 
+		// ---- Per-warehouse label layout settings (admin only; preview below uses it live) ----
+		if ($can_admin) {
+			$layout_fields = array(
+				'width_mm'      => 'LabelWidthMm',
+				'height_mm'     => 'LabelHeightMm',
+				'pad_top_mm'    => 'LabelPadTopMm',
+				'pad_right_mm'  => 'LabelPadRightMm',
+				'pad_bottom_mm' => 'LabelPadBottomMm',
+				'pad_left_mm'   => 'LabelPadLeftMm',
+				'font_pt'       => 'LabelFontPt',
+			);
+			print '<details class="binloc-card binloc-label-settings">';
+			print '<summary><strong>'.$langs->trans('LabelLayout').'</strong></summary>';
+			print '<div class="opacitymedium small marginbottomonly">'.$langs->trans('LabelLayoutDesc').'</div>';
+			print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'">';
+			print '<input type="hidden" name="token" value="'.newToken().'">';
+			print '<input type="hidden" name="action" value="savelayout">';
+			print '<input type="hidden" name="fk_entrepot" value="'.$fk_entrepot.'">';
+			if (!empty($search)) {
+				print '<input type="hidden" name="search_product" value="'.dol_escape_htmltag($search).'">';
+			}
+			foreach ($level_filter_raw as $level_id => $raw) {
+				print '<input type="hidden" name="search_level'.$level_id.'" value="'.dol_escape_htmltag($raw).'">';
+			}
+			print '<div class="binloc-inline-form">';
+			foreach ($layout_fields as $key => $transkey) {
+				print '<label class="binloc-layout-field">'.$langs->trans($transkey).'<br>';
+				print '<input type="text" name="layout_'.$key.'" class="flat width50 right" value="'.binloc_css_num($layout->$key).'">';
+				print '</label>';
+			}
+			print '</div>';
+			print '<div class="binloc-inline-form margintoponly">';
+			print '<label class="binloc-layout-field">'.$langs->trans('LabelBorderMm').'<br>';
+			print '<input type="text" name="layout_border_mm" class="flat width50 right" value="'.binloc_css_num($layout->border_mm).'">';
+			print '</label>';
+			print '<label class="binloc-layout-field">'.$langs->trans('LabelSheetMarginMm').'<br>';
+			print '<input type="text" name="layout_sheet_margin_mm" class="flat width50 right" value="'.binloc_css_num($layout->sheet_margin_mm).'">';
+			print '</label>';
+			print '<label class="binloc-layout-field">'.$langs->trans('LabelCodeSep').'<br>';
+			print '<input type="text" name="layout_code_sep" class="flat width50" value="'.dol_escape_htmltag($layout->code_sep).'" maxlength="3">';
+			print '</label>';
+			print '<label class="binloc-layout-field">'.$langs->trans('LabelSubLevel').'<br>';
+			print '<select name="layout_sub_level" class="flat">';
+			print '<option value="0"'.((int) $layout->sub_level === 0 ? ' selected' : '').'>'.$langs->trans('LabelSubLevelAuto').'</option>';
+			print '<option value="-1"'.((int) $layout->sub_level === -1 ? ' selected' : '').'>'.$langs->trans('LabelSubLevelNone').'</option>';
+			foreach ($wh_levels as $level_id => $cfg) {
+				print '<option value="'.$level_id.'"'.((int) $layout->sub_level === (int) $level_id ? ' selected' : '').'>'.dol_escape_htmltag($cfg->label).'</option>';
+			}
+			print '</select>';
+			print '</label>';
+			print '<label class="binloc-layout-field"><input type="checkbox" name="layout_show_batch" value="1"'.($layout->show_batch ? ' checked' : '').'> '.$langs->trans('LabelShowBatch').'</label>';
+			print '<label class="binloc-layout-field"><input type="checkbox" name="layout_show_product_label" value="1"'.($layout->show_product_label ? ' checked' : '').'> '.$langs->trans('LabelShowProductLabel').'</label>';
+			print '<button type="submit" class="button smallpaddingimp">'.dol_escape_htmltag($langs->trans('Save')).'</button>';
+			print '</div>';
+			print '</form>';
+			print '</details>';
+		}
+
+		print binloc_label_layout_css($layout);
 		print binloc_render_level_legend($wh_levels);
 
 		if (empty($bins)) {
@@ -317,7 +417,7 @@ if ($fk_entrepot > 0) {
 			print '</a>';
 			print '</div>';
 
-			print binloc_labels_render_cards($bins);
+			print binloc_labels_render_cards($bins, $layout);
 		}
 	}
 }

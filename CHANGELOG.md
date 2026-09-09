@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.5.0] - 2026-09-09
+
+### Added
+- **Per-warehouse label layout** (collapsible "Label layout" panel on the Bin Labels page, admin right): label width, height (0 = auto), top/right/bottom/left padding, and base font size — all in mm/pt. Top padding doubles as a blank header strip on every label (e.g. 21 mm for slide-in bin holders) without any hardcoded rectangle. Labels print edge to edge with zero gap so sheets are cut with a single slice between labels; rows stretch to equal height. Stored as a per-warehouse constant — no schema change. Defaults: 75 mm wide, auto height, 21/3/3/3 mm padding, 9 pt.
+- **More label options** in the same panel: border thickness (0 = none, for pre-cut sticker stock), print-sheet margin, bin-code separator ('' = values joined, e.g. `R5B`; `-` = `R5-B`), sub-bin level choice (automatic deepest / none / a specific level), and toggles for lot/serial batches and product names on label contents.
+
+### Fixed
+- **Warehouse Levels: universal Save.** The page is now a single form — level rows, every dropdown value and description, and the per-level "new value" inputs all save with one button. Previously each value row was its own form, so saving one discarded unsaved edits in the others. Disable/Enable/Delete also save all pending edits before applying.
+
 ## [2.4.0] - 2026-09-09
 
 ### Added

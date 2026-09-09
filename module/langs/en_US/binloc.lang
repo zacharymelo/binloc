@@ -81,6 +81,7 @@ InvalidOptionValue = Invalid value (empty or longer than 64 characters)
 UsedByNLocations = used by %s location(s)
 ShowLocationsUsingValue = Show the bin locations using this value
 NewValue = New value
+NewValueSavedWithForm = added on Save
 TargetWarehouseHasLevels = The target warehouse already has levels configured — remove them first to copy
 
 #
@@ -125,6 +126,24 @@ NoBinsMatch = No bins match the current selection
 BinContents = Contents
 LabelsCount = %s label(s)
 BinValueLegend = Key
+LabelLayout = Label layout
+LabelLayoutDesc = Per-warehouse sizing for printed labels. Top padding leaves a blank strip at the top of every label (e.g. 21 mm for slide-in bin holders). Labels print edge to edge with no gap, so a sheet can be cut with a single slice between labels. Height 0 sizes each row automatically.
+LabelWidthMm = Width (mm)
+LabelHeightMm = Height (mm, 0 = auto)
+LabelPadTopMm = Padding top (mm)
+LabelPadRightMm = Padding right (mm)
+LabelPadBottomMm = Padding bottom (mm)
+LabelPadLeftMm = Padding left (mm)
+LabelFontPt = Font size (pt)
+LabelBorderMm = Border (mm, 0 = none)
+LabelSheetMarginMm = Sheet margin (mm)
+LabelCodeSep = Code separator
+LabelSubLevel = Sub-bin level
+LabelSubLevelAuto = Automatic (deepest level)
+LabelSubLevelNone = None (one label per full bin)
+LabelShowBatch = Show lot/serial
+LabelShowProductLabel = Show product names
+LabelLayoutSaved = Label layout saved
 
 #
 # Dropdown value descriptions

@@ -96,23 +96,33 @@
 	margin-bottom: 8px;
 }
 
+.binloc-label-settings summary {
+	cursor: pointer;
+}
+
+.binloc-label-settings .binloc-inline-form {
+	align-items: flex-end;
+}
+
+.binloc-layout-field {
+	font-size: 0.85em;
+	white-space: nowrap;
+}
+
 .binloc-legend-title {
 	font-weight: bold;
 }
 
-/* ---- Bin labels (preview and print) ---- */
+/* ---- Bin labels (preview and print) ----
+   Geometry (width, height, padding, font size, zero gap) is emitted per
+   warehouse by binloc_label_layout_css(); only decoration lives here. */
 
 .binloc-label-sheet {
-	display: grid;
-	grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-	gap: 8px;
 	margin-top: 8px;
 }
 
 .binloc-label {
-	border: 1.5px solid var(--bordercolor, rgba(0, 0, 0, 0.5));
-	border-radius: 4px;
-	padding: 10px 12px;
+	border: 0.3mm solid var(--bordercolor, rgba(0, 0, 0, 0.5));
 	break-inside: avoid;
 	page-break-inside: avoid;
 }
@@ -157,10 +167,4 @@
 /* Standalone print document (labels.php?output=print) */
 .binloc-print-body .binloc-label {
 	border-color: #000;
-}
-
-@media print {
-	.binloc-label-sheet {
-		grid-template-columns: repeat(3, 1fr);
-	}
 }

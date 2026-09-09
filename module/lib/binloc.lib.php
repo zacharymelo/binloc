@@ -64,7 +64,7 @@ function binloc_print_assets()
 	}
 	$printed = true;
 
-	$v = '2.4.0';
+	$v = '2.5.0';
 	print '<link rel="stylesheet" href="'.dol_buildpath('/binloc/css/binloc.css', 1).'?v='.$v.'">'."\n";
 	print '<script src="'.dol_buildpath('/binloc/js/binloc.js', 1).'?v='.$v.'"></script>'."\n";
 	print '<script>Binloc.init({ajaxBase: "'.dol_escape_js(dol_buildpath('/binloc/ajax/', 1)).'", token: "'.newToken().'"});</script>'."\n";
@@ -220,6 +220,145 @@ function binloc_compact_code($level_cfgs, $values)
 		}
 	}
 	return implode('', $parts);
+}
+
+/**
+ * Default per-warehouse label layout (all dimensions in mm, font in pt).
+ * pad_top_mm doubles as the blank header strip at the top of each label
+ * (e.g. for slide-in bin holders) — no hardcoded rectangle anywhere.
+ *
+ * @return stdClass
+ */
+function binloc_label_layout_defaults()
+{
+	$layout = new stdClass();
+	$layout->width_mm        = 75.0;
+	$layout->height_mm       = 0.0; // 0 = automatic height
+	$layout->pad_top_mm      = 21.0;
+	$layout->pad_right_mm    = 3.0;
+	$layout->pad_bottom_mm   = 3.0;
+	$layout->pad_left_mm     = 3.0;
+	$layout->font_pt         = 9.0;
+	$layout->border_mm       = 0.3; // 0 = no border (pre-cut sticker stock)
+	$layout->sheet_margin_mm = 0.0; // print-sheet margin around the whole grid
+	$layout->code_sep        = ''; // '' = values joined (AL253B3); e.g. '-' for A-L-2...
+	$layout->sub_level       = 0; // 0 = auto (deepest level), -1 = no sub-bin split, >0 = level rowid
+	$layout->show_batch      = 1; // lot/serial batch on label items
+	$layout->show_product_label = 1; // product name next to the ref
+	return $layout;
+}
+
+/**
+ * Clamp a label layout to sane printable ranges (in place)
+ *
+ * @param  stdClass $layout Layout object
+ * @return stdClass         The same object
+ */
+function binloc_label_layout_clamp($layout)
+{
+	$layout->width_mm        = max(20.0, min(300.0, (float) $layout->width_mm));
+	$layout->height_mm       = max(0.0, min(300.0, (float) $layout->height_mm));
+	$layout->pad_top_mm      = max(0.0, min(100.0, (float) $layout->pad_top_mm));
+	$layout->pad_right_mm    = max(0.0, min(100.0, (float) $layout->pad_right_mm));
+	$layout->pad_bottom_mm   = max(0.0, min(100.0, (float) $layout->pad_bottom_mm));
+	$layout->pad_left_mm     = max(0.0, min(100.0, (float) $layout->pad_left_mm));
+	$layout->font_pt         = max(4.0, min(30.0, (float) $layout->font_pt));
+	$layout->border_mm       = max(0.0, min(2.0, (float) $layout->border_mm));
+	$layout->sheet_margin_mm = max(0.0, min(50.0, (float) $layout->sheet_margin_mm));
+	$layout->code_sep        = dol_substr((string) $layout->code_sep, 0, 3);
+	$layout->sub_level       = max(-1, (int) $layout->sub_level);
+	$layout->show_batch      = empty($layout->show_batch) ? 0 : 1;
+	$layout->show_product_label = empty($layout->show_product_label) ? 0 : 1;
+	return $layout;
+}
+
+/**
+ * Load the label layout of a warehouse (stored as JSON in a per-warehouse
+ * constant; missing fields fall back to defaults)
+ *
+ * @param  DoliDB $db          Database handler
+ * @param  int    $fk_entrepot Warehouse ID
+ * @return stdClass            Layout object (see binloc_label_layout_defaults)
+ */
+function binloc_get_label_layout($db, $fk_entrepot)
+{
+	global $conf;
+
+	require_once DOL_DOCUMENT_ROOT.'/core/lib/admin.lib.php'; // dolibarr_get_const
+
+	$layout = binloc_label_layout_defaults();
+
+	$raw = dolibarr_get_const($db, 'BINLOC_LABEL_LAYOUT_'.((int) $fk_entrepot), $conf->entity);
+	$stored = $raw ? json_decode($raw) : null;
+	if (is_object($stored)) {
+		foreach (get_object_vars($layout) as $key => $default) {
+			if (!isset($stored->$key)) {
+				continue;
+			}
+			if (is_string($default)) {
+				$layout->$key = (string) $stored->$key;
+			} elseif (is_numeric($stored->$key)) {
+				$layout->$key = is_int($default) ? (int) $stored->$key : (float) $stored->$key;
+			}
+		}
+	}
+
+	return binloc_label_layout_clamp($layout);
+}
+
+/**
+ * Persist the label layout of a warehouse
+ *
+ * @param  DoliDB   $db          Database handler
+ * @param  int      $fk_entrepot Warehouse ID
+ * @param  stdClass $layout      Layout object
+ * @return int                   >0 if OK, <0 if KO
+ */
+function binloc_save_label_layout($db, $fk_entrepot, $layout)
+{
+	global $conf;
+
+	require_once DOL_DOCUMENT_ROOT.'/core/lib/admin.lib.php'; // dolibarr_set_const
+
+	binloc_label_layout_clamp($layout);
+	return dolibarr_set_const($db, 'BINLOC_LABEL_LAYOUT_'.((int) $fk_entrepot), json_encode($layout), 'chaine', 0, '', $conf->entity);
+}
+
+/**
+ * Format a layout number for CSS output (no locale separators, no trailing zeros)
+ *
+ * @param  float $value Number
+ * @return string
+ */
+function binloc_css_num($value)
+{
+	$str = rtrim(rtrim(number_format((float) $value, 2, '.', ''), '0'), '.');
+	return ($str === '' || $str === '-') ? '0' : $str;
+}
+
+/**
+ * Geometry CSS for the label sheet, generated from a warehouse's layout.
+ * Owns ALL sizing (width, height, padding, font); binloc.css keeps only the
+ * decorative rules. Labels butt against each other with zero gap so a sheet
+ * can be cut with a single slice between labels.
+ *
+ * @param  stdClass $layout Layout object
+ * @return string           <style> block
+ */
+function binloc_label_layout_css($layout)
+{
+	$css = '.binloc-label-sheet { display: flex; flex-wrap: wrap; gap: 0; align-items: stretch; }'."\n";
+	$css .= '.binloc-label { box-sizing: border-box; margin: 0; border-radius: 0;';
+	$css .= ' width: '.binloc_css_num($layout->width_mm).'mm;';
+	if ($layout->height_mm > 0) {
+		$css .= ' height: '.binloc_css_num($layout->height_mm).'mm; overflow: hidden;';
+	}
+	$css .= ' padding: '.binloc_css_num($layout->pad_top_mm).'mm '.binloc_css_num($layout->pad_right_mm).'mm';
+	$css .= ' '.binloc_css_num($layout->pad_bottom_mm).'mm '.binloc_css_num($layout->pad_left_mm).'mm;';
+	$css .= ' font-size: '.binloc_css_num($layout->font_pt).'pt;';
+	$css .= ($layout->border_mm > 0 ? ' border-width: '.binloc_css_num($layout->border_mm).'mm;' : ' border: none;');
+	$css .= ' }';
+	return '<style>'."\n".$css."\n".'</style>'."\n";
 }
 
 /**

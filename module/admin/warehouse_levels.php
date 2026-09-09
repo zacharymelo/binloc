@@ -11,6 +11,12 @@
  * existing location data. List values are managed per level in the options
  * sub-editor — renaming an option propagates to every assignment because
  * values reference options by rowid.
+ *
+ * The whole page is ONE form with a single universal Save: level rows, every
+ * option's value/description, and the per-level "new value" inputs all submit
+ * together, so saving never discards edits made elsewhere on the page. The
+ * per-option Disable/Enable/Delete buttons are named submits of the same form
+ * — they too save all pending edits before applying their own action.
  */
 
 $res = 0;
@@ -45,23 +51,14 @@ $level_hints = array(
 	6 => 'LevelHint6',
 );
 
-/**
- * A level id posted by an option action must belong to the selected warehouse
- *
- * @param  array $levels Current level configs keyed by rowid
- * @param  int   $level_id Posted level rowid
- * @return bool
- */
-function binloc_admin_level_belongs($levels, $level_id)
-{
-	return $level_id > 0 && isset($levels[$level_id]);
-}
-
 // ---- ACTIONS ----
 
 $current_levels = ($fk_entrepot > 0) ? $levelObj->fetchByWarehouse($fk_entrepot, true) : array();
 
 if ($action === 'savelevels' && $fk_entrepot > 0) {
+	$errors = 0;
+
+	// 1) Level rows (labels, types, order, additions, removals)
 	$level_ids = GETPOST('level_ids', 'array');
 	$labels    = GETPOST('labels', 'array');
 	$datatypes = GETPOST('datatypes', 'array');
@@ -84,11 +81,91 @@ if ($action === 'savelevels' && $fk_entrepot > 0) {
 		}
 	}
 
-	$result = $levelObj->applyWarehouseLevels($fk_entrepot, $rows, $user);
-	if ($result > 0) {
-		setEventMessages($langs->trans('LevelsSaved'), null, 'mesgs');
-	} else {
+	if ($levelObj->applyWarehouseLevels($fk_entrepot, $rows, $user) <= 0) {
 		setEventMessages($levelObj->error, null, 'errors');
+		$errors++;
+	}
+
+	$current_levels = $levelObj->fetchByWarehouse($fk_entrepot, true);
+
+	// Ownership map: every option of this warehouse, keyed by rowid
+	$owned_options = array();
+	foreach ($current_levels as $cfg) {
+		foreach ($cfg->options as $opt) {
+			$opt->level_label = $cfg->label;
+			$owned_options[(int) $opt->id] = $opt;
+		}
+	}
+
+	// 2) Delete (named submit; processed first so its row skips the rename pass)
+	$delete_id = GETPOSTINT('deleteoption');
+	if ($delete_id > 0 && isset($owned_options[$delete_id])) {
+		$result = $optionObj->deleteIfUnreferenced($delete_id);
+		if ($result > 0) {
+			setEventMessages($langs->trans('OptionDeleted'), null, 'mesgs');
+		} elseif ($result == -2) {
+			setEventMessages($langs->trans('OptionInUseDeactivateInstead', $optionObj->countReferences($delete_id)), null, 'warnings');
+			$errors++;
+		} else {
+			setEventMessages($langs->trans($optionObj->error), null, 'errors');
+			$errors++;
+		}
+	}
+
+	// 3) Option value/description edits (only rows that actually changed)
+	$opt_values = GETPOST('opt_value', 'array');
+	$opt_descs  = GETPOST('opt_desc', 'array');
+	foreach ($owned_options as $opt_id => $opt) {
+		if ($opt_id === $delete_id) {
+			continue;
+		}
+		if (!isset($opt_values[$opt_id]) && !isset($opt_descs[$opt_id])) {
+			continue; // not on the submitted page
+		}
+		$new_value = isset($opt_values[$opt_id]) ? trim($opt_values[$opt_id]) : $opt->value;
+		$new_desc  = isset($opt_descs[$opt_id]) ? trim($opt_descs[$opt_id]) : $opt->description;
+		if ($new_value === $opt->value && $new_desc === $opt->description) {
+			continue;
+		}
+		if ($optionObj->rename($opt_id, $new_value, $user, $new_desc) <= 0) {
+			setEventMessages($opt->level_label.' &mdash; '.dol_escape_htmltag($opt->value).': '.$langs->trans($optionObj->error), null, 'errors');
+			$errors++;
+		}
+	}
+
+	// 4) New values (one optional "new value" row per list level)
+	$new_values = GETPOST('new_value', 'array');
+	$new_descs  = GETPOST('new_desc', 'array');
+	foreach ($current_levels as $level_id => $cfg) {
+		if ($cfg->datatype !== 'list') {
+			continue;
+		}
+		$value = isset($new_values[$level_id]) ? trim($new_values[$level_id]) : '';
+		if ($value === '') {
+			continue;
+		}
+		$max_pos = 0;
+		foreach ($cfg->options as $opt) {
+			$max_pos = max($max_pos, $opt->position);
+		}
+		$desc = isset($new_descs[$level_id]) ? trim($new_descs[$level_id]) : '';
+		if ($optionObj->create($level_id, $value, $max_pos + 1, $user, $desc) <= 0) {
+			setEventMessages($cfg->label.' &mdash; '.dol_escape_htmltag($value).': '.$langs->trans($optionObj->error), null, 'errors');
+			$errors++;
+		}
+	}
+
+	// 5) Toggle active (named submit) — flips the state stored server-side
+	$toggle_id = GETPOSTINT('toggleoption');
+	if ($toggle_id > 0 && isset($owned_options[$toggle_id]) && $toggle_id !== $delete_id) {
+		if ($optionObj->setActive($toggle_id, $owned_options[$toggle_id]->active ? 0 : 1, $user) <= 0) {
+			setEventMessages($langs->trans($optionObj->error), null, 'errors');
+			$errors++;
+		}
+	}
+
+	if (!$errors) {
+		setEventMessages($langs->trans('LevelsSaved'), null, 'mesgs');
 	}
 	$action = '';
 	$current_levels = $levelObj->fetchByWarehouse($fk_entrepot, true);
@@ -104,63 +181,6 @@ if ($action === 'copylevels' && $fk_entrepot > 0) {
 			setEventMessages($langs->trans('TargetWarehouseHasLevels'), null, 'errors');
 		} else {
 			setEventMessages($levelObj->error, null, 'errors');
-		}
-	}
-	$action = '';
-	$current_levels = $levelObj->fetchByWarehouse($fk_entrepot, true);
-}
-
-// Option sub-editor actions
-if ($fk_entrepot > 0 && in_array($action, array('addoption', 'renameoption', 'toggleoption', 'deleteoption'), true)) {
-	$level_id  = GETPOSTINT('level_id');
-	$option_id = GETPOSTINT('option_id');
-
-	if (!binloc_admin_level_belongs($current_levels, $level_id)) {
-		setEventMessages('Invalid level', null, 'errors');
-	} elseif ($action === 'addoption') {
-		$value = GETPOST('option_value', 'alphanohtml');
-		$max_pos = 0;
-		foreach ($current_levels[$level_id]->options as $opt) {
-			$max_pos = max($max_pos, $opt->position);
-		}
-		$result = $optionObj->create($level_id, $value, $max_pos + 1, $user, GETPOST('option_desc', 'alphanohtml'));
-		if ($result > 0) {
-			setEventMessages($langs->trans('OptionAdded'), null, 'mesgs');
-		} else {
-			setEventMessages($langs->trans($optionObj->error), null, 'errors');
-		}
-	} else {
-		// Option must belong to the level
-		$owned = false;
-		foreach ($current_levels[$level_id]->options as $opt) {
-			if ((int) $opt->id === $option_id) {
-				$owned = true;
-				break;
-			}
-		}
-		if (!$owned) {
-			setEventMessages('Invalid option', null, 'errors');
-		} elseif ($action === 'renameoption') {
-			$result = $optionObj->rename($option_id, GETPOST('option_value', 'alphanohtml'), $user, GETPOST('option_desc', 'alphanohtml'));
-			if ($result > 0) {
-				setEventMessages($langs->trans('OptionRenamed'), null, 'mesgs');
-			} else {
-				setEventMessages($langs->trans($optionObj->error), null, 'errors');
-			}
-		} elseif ($action === 'toggleoption') {
-			$result = $optionObj->setActive($option_id, GETPOSTINT('active'), $user);
-			if ($result <= 0) {
-				setEventMessages($langs->trans($optionObj->error), null, 'errors');
-			}
-		} elseif ($action === 'deleteoption') {
-			$result = $optionObj->deleteIfUnreferenced($option_id);
-			if ($result > 0) {
-				setEventMessages($langs->trans('OptionDeleted'), null, 'mesgs');
-			} elseif ($result == -2) {
-				setEventMessages($langs->trans('OptionInUseDeactivateInstead', $optionObj->countReferences($option_id)), null, 'warnings');
-			} else {
-				setEventMessages($langs->trans($optionObj->error), null, 'errors');
-			}
 		}
 	}
 	$action = '';
@@ -228,7 +248,7 @@ if ($fk_entrepot > 0) {
 		}
 	}
 
-	// ---- Level editor (stable rowids, order = row order) ----
+	// ---- ONE form: level editor + option editors + universal Save ----
 	print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'" id="binloc-level-form">';
 	print '<input type="hidden" name="token" value="'.newToken().'">';
 	print '<input type="hidden" name="action" value="savelevels">';
@@ -297,12 +317,9 @@ if ($fk_entrepot > 0) {
 	print '<a href="#" id="binloc-add-level" class="button smallpaddingimp">';
 	print img_picto('', 'add', 'class="pictofixedwidth"').$langs->trans('AddLevel');
 	print '</a>';
-	print ' <input type="submit" class="button" value="'.dol_escape_htmltag($langs->trans('Save')).'">';
 	print '</div>';
 
-	print '</form>';
-
-	// ---- Options sub-editor for list-type levels ----
+	// ---- Options sub-editor for list-type levels (same form) ----
 	$list_levels = array();
 	foreach ($current_levels as $level_id => $cfg) {
 		if ($cfg->datatype === 'list') {
@@ -327,16 +344,8 @@ if ($fk_entrepot > 0) {
 				$refs = $optionObj->countReferences($opt->id);
 				print '<tr class="oddeven'.($opt->active ? '' : ' binloc-legacy').'">';
 				print '<td>';
-				print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'" style="display:inline">';
-				print '<input type="hidden" name="token" value="'.newToken().'">';
-				print '<input type="hidden" name="action" value="renameoption">';
-				print '<input type="hidden" name="fk_entrepot" value="'.$fk_entrepot.'">';
-				print '<input type="hidden" name="level_id" value="'.$level_id.'">';
-				print '<input type="hidden" name="option_id" value="'.$opt->id.'">';
-				print '<input type="text" name="option_value" class="flat width100" value="'.dol_escape_htmltag($opt->value).'">';
-				print ' <input type="text" name="option_desc" class="flat minwidth150" value="'.dol_escape_htmltag($opt->description).'" placeholder="'.dol_escape_htmltag($langs->trans('OptionDescription')).'" title="'.dol_escape_htmltag($langs->trans('OptionDescriptionHint')).'">';
-				print ' <input type="submit" class="button smallpaddingimp" value="'.dol_escape_htmltag($langs->trans('Save')).'">';
-				print '</form>';
+				print '<input type="text" name="opt_value['.$opt->id.']" class="flat width100" value="'.dol_escape_htmltag($opt->value).'">';
+				print ' <input type="text" name="opt_desc['.$opt->id.']" class="flat minwidth150" value="'.dol_escape_htmltag($opt->description).'" placeholder="'.dol_escape_htmltag($langs->trans('OptionDescription')).'" title="'.dol_escape_htmltag($langs->trans('OptionDescriptionHint')).'">';
 				print '</td>';
 				print '<td class="opacitymedium small">';
 				if ($refs > 0) {
@@ -348,43 +357,35 @@ if ($fk_entrepot > 0) {
 				}
 				print '</td>';
 				print '<td class="center nowraponall">';
-				print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'" style="display:inline">';
-				print '<input type="hidden" name="token" value="'.newToken().'">';
-				print '<input type="hidden" name="action" value="toggleoption">';
-				print '<input type="hidden" name="fk_entrepot" value="'.$fk_entrepot.'">';
-				print '<input type="hidden" name="level_id" value="'.$level_id.'">';
-				print '<input type="hidden" name="option_id" value="'.$opt->id.'">';
-				print '<input type="hidden" name="active" value="'.($opt->active ? 0 : 1).'">';
-				print '<button type="submit" class="button smallpaddingimp">'.($opt->active ? $langs->trans('Disable') : $langs->trans('Enable')).'</button>';
-				print '</form> ';
+				print '<button type="submit" name="toggleoption" value="'.$opt->id.'" class="button smallpaddingimp">'.($opt->active ? $langs->trans('Disable') : $langs->trans('Enable')).'</button>';
 				if ($refs === 0) {
-					print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'" style="display:inline">';
-					print '<input type="hidden" name="token" value="'.newToken().'">';
-					print '<input type="hidden" name="action" value="deleteoption">';
-					print '<input type="hidden" name="fk_entrepot" value="'.$fk_entrepot.'">';
-					print '<input type="hidden" name="level_id" value="'.$level_id.'">';
-					print '<input type="hidden" name="option_id" value="'.$opt->id.'">';
-					print '<button type="submit" class="button smallpaddingimp">'.img_picto($langs->trans('Delete'), 'delete').'</button>';
-					print '</form>';
+					print ' <button type="submit" name="deleteoption" value="'.$opt->id.'" class="button smallpaddingimp">'.img_picto($langs->trans('Delete'), 'delete').'</button>';
 				}
 				print '</td>';
 				print '</tr>';
 			}
+
+			// New-value row for this level
+			print '<tr class="oddeven">';
+			print '<td>';
+			print '<input type="text" name="new_value['.$level_id.']" class="flat width100" placeholder="'.dol_escape_htmltag($langs->trans('NewValue')).'">';
+			print ' <input type="text" name="new_desc['.$level_id.']" class="flat minwidth150" placeholder="'.dol_escape_htmltag($langs->trans('OptionDescription')).'" title="'.dol_escape_htmltag($langs->trans('OptionDescriptionHint')).'">';
+			print '</td>';
+			print '<td class="opacitymedium small">'.$langs->trans('NewValueSavedWithForm').'</td>';
+			print '<td></td>';
+			print '</tr>';
+
 			print '</table>';
-
-			print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'" class="margintoponly">';
-			print '<input type="hidden" name="token" value="'.newToken().'">';
-			print '<input type="hidden" name="action" value="addoption">';
-			print '<input type="hidden" name="fk_entrepot" value="'.$fk_entrepot.'">';
-			print '<input type="hidden" name="level_id" value="'.$level_id.'">';
-			print '<input type="text" name="option_value" class="flat width100" placeholder="'.dol_escape_htmltag($langs->trans('NewValue')).'">';
-			print ' <input type="text" name="option_desc" class="flat minwidth150" placeholder="'.dol_escape_htmltag($langs->trans('OptionDescription')).'" title="'.dol_escape_htmltag($langs->trans('OptionDescriptionHint')).'">';
-			print ' <input type="submit" class="button smallpaddingimp" value="'.dol_escape_htmltag($langs->trans('Add')).'">';
-			print '</form>';
-
 			print '</div>';
 		}
 	}
+
+	// Universal save: one button for level rows, option edits and new values
+	print '<div class="margintoponly">';
+	print '<input type="submit" class="button" value="'.dol_escape_htmltag($langs->trans('Save')).'">';
+	print '</div>';
+
+	print '</form>';
 
 	// ---- JS for dynamic level rows (visual numbering only — identity is the hidden rowid) ----
 	$level_hints_json = json_encode(array(
