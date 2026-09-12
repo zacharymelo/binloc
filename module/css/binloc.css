@@ -138,13 +138,43 @@
 	page-break-inside: avoid;
 }
 
+/* Title (full code) left, corner tag (own level value) right — the corner's
+   font-size is emitted per layout in absolute pt (reading-distance sized) */
+.binloc-label-head {
+	display: flex;
+	justify-content: space-between;
+	align-items: flex-start;
+	gap: 0.5em;
+	margin-bottom: 4px;
+}
+
 .binloc-label-code {
 	font-family: monospace;
 	font-size: 1.7em;
 	font-weight: bold;
 	letter-spacing: 0.06em;
-	margin-bottom: 6px;
 	word-break: break-all;
+}
+
+.binloc-label-corner {
+	font-family: monospace;
+	font-weight: bold;
+	line-height: 1;
+	flex-shrink: 0;
+}
+
+.binloc-label-descline {
+	font-size: 1.1em;
+	margin-bottom: 4px;
+}
+
+.binloc-label-empty .binloc-label-head {
+	margin-bottom: 0;
+}
+
+.binloc-label-subpath {
+	font-family: monospace;
+	opacity: 0.7;
 }
 
 .binloc-label-desc {
@@ -156,13 +186,6 @@
 	margin-top: 6px;
 	padding-top: 4px;
 	border-top: 1px dashed var(--bordercolor, rgba(0, 0, 0, 0.25));
-}
-
-.binloc-label-items-title {
-	font-size: 0.8em;
-	font-weight: bold;
-	text-transform: uppercase;
-	opacity: 0.7;
 }
 
 .binloc-label-items ul {

@@ -64,7 +64,7 @@ function binloc_print_assets()
 	}
 	$printed = true;
 
-	$v = '2.8.0';
+	$v = '2.9.0';
 	print '<link rel="stylesheet" href="'.dol_buildpath('/binloc/css/binloc.css', 1).'?v='.$v.'">'."\n";
 	print '<script src="'.dol_buildpath('/binloc/js/binloc.js', 1).'?v='.$v.'"></script>'."\n";
 	print '<script>Binloc.init({ajaxBase: "'.dol_escape_js(dol_buildpath('/binloc/ajax/', 1)).'", token: "'.newToken().'"});</script>'."\n";
@@ -280,9 +280,13 @@ function binloc_compact_code($level_cfgs, $values)
 }
 
 /**
- * Default per-warehouse label layout (all dimensions in mm, font in pt).
+ * Default label layout (all dimensions in mm, fonts in pt).
  * pad_top_mm doubles as the blank header strip at the top of each label
  * (e.g. for slide-in bin holders) — no hardcoded rectangle anywhere.
+ *
+ * Layouts are stored per warehouse, optionally overridden per label level
+ * (a bag tag and a shelf tag are different stock AND different reading
+ * distances — see binloc_get_label_layout()).
  *
  * @return stdClass
  */
@@ -296,10 +300,11 @@ function binloc_label_layout_defaults()
 	$layout->pad_bottom_mm   = 3.0;
 	$layout->pad_left_mm     = 3.0;
 	$layout->font_pt         = 9.0;
+	$layout->corner_pt       = 18.0; // the label's own level value, top-right (0 = hide)
 	$layout->border_mm       = 0.3; // 0 = no border (pre-cut sticker stock)
 	$layout->sheet_margin_mm = 0.0; // print-sheet margin around the whole grid
 	$layout->code_sep        = ''; // '' = values joined (AL253B3); e.g. '-' for A-L-2...
-	$layout->sub_level       = 0; // 0 = auto (deepest level), -1 = no sub-bin split, >0 = level rowid
+	$layout->show_description = 1; // own level value's description under the title
 	$layout->show_batch      = 1; // lot/serial batch on label items
 	$layout->show_product_label = 1; // product name next to the ref
 	return $layout;
@@ -320,65 +325,130 @@ function binloc_label_layout_clamp($layout)
 	$layout->pad_bottom_mm   = max(0.0, min(100.0, (float) $layout->pad_bottom_mm));
 	$layout->pad_left_mm     = max(0.0, min(100.0, (float) $layout->pad_left_mm));
 	$layout->font_pt         = max(4.0, min(30.0, (float) $layout->font_pt));
+	$layout->corner_pt       = max(0.0, min(72.0, (float) $layout->corner_pt));
 	$layout->border_mm       = max(0.0, min(2.0, (float) $layout->border_mm));
 	$layout->sheet_margin_mm = max(0.0, min(50.0, (float) $layout->sheet_margin_mm));
 	$layout->code_sep        = dol_substr((string) $layout->code_sep, 0, 3);
-	$layout->sub_level       = max(-1, (int) $layout->sub_level);
+	$layout->show_description = empty($layout->show_description) ? 0 : 1;
 	$layout->show_batch      = empty($layout->show_batch) ? 0 : 1;
 	$layout->show_product_label = empty($layout->show_product_label) ? 0 : 1;
 	return $layout;
 }
 
 /**
- * Load the label layout of a warehouse (stored as JSON in a per-warehouse
- * constant; missing fields fall back to defaults)
+ * Constant name holding a stored layout: one per warehouse, plus an
+ * optional override per label level
+ *
+ * @param  int $fk_entrepot Warehouse ID
+ * @param  int $fk_level    Level rowid (0 = the warehouse default)
+ * @return string
+ */
+function binloc_label_layout_const_name($fk_entrepot, $fk_level = 0)
+{
+	return 'BINLOC_LABEL_LAYOUT_'.((int) $fk_entrepot).($fk_level > 0 ? '_L'.((int) $fk_level) : '');
+}
+
+/**
+ * Overlay a stored JSON layout onto $layout (type-aware, unknown keys ignored)
+ *
+ * @param  stdClass    $layout Layout to modify in place
+ * @param  string|null $raw    Stored JSON ('' or null = nothing stored)
+ * @return bool                True when something was overlaid
+ */
+function binloc_label_layout_overlay($layout, $raw)
+{
+	$stored = $raw ? json_decode($raw) : null;
+	if (!is_object($stored)) {
+		return false;
+	}
+	foreach (get_object_vars(binloc_label_layout_defaults()) as $key => $default) {
+		if (!isset($stored->$key)) {
+			continue;
+		}
+		if (is_string($default)) {
+			$layout->$key = (string) $stored->$key;
+		} elseif (is_numeric($stored->$key)) {
+			$layout->$key = is_int($default) ? (int) $stored->$key : (float) $stored->$key;
+		}
+	}
+	// Pre-2.9 layouts stored a "sub_level" (which level groups contents);
+	// kept only so the labels page can derive its default label level from it
+	if (isset($stored->sub_level) && is_numeric($stored->sub_level)) {
+		$layout->legacy_sub_level = (int) $stored->sub_level;
+	}
+	return true;
+}
+
+/**
+ * Load the label layout for a warehouse and, optionally, one label level.
+ * Resolution: defaults <- warehouse layout <- per-level layout (if any).
+ * $layout->is_level_specific tells the settings panel which one it is editing.
  *
  * @param  DoliDB $db          Database handler
  * @param  int    $fk_entrepot Warehouse ID
+ * @param  int    $fk_level    Label level rowid (0 = warehouse default only)
  * @return stdClass            Layout object (see binloc_label_layout_defaults)
  */
-function binloc_get_label_layout($db, $fk_entrepot)
+function binloc_get_label_layout($db, $fk_entrepot, $fk_level = 0)
 {
 	global $conf;
 
 	require_once DOL_DOCUMENT_ROOT.'/core/lib/admin.lib.php'; // dolibarr_get_const
 
 	$layout = binloc_label_layout_defaults();
+	$layout->legacy_sub_level = 0;
+	$layout->is_level_specific = false;
 
-	$raw = dolibarr_get_const($db, 'BINLOC_LABEL_LAYOUT_'.((int) $fk_entrepot), $conf->entity);
-	$stored = $raw ? json_decode($raw) : null;
-	if (is_object($stored)) {
-		foreach (get_object_vars($layout) as $key => $default) {
-			if (!isset($stored->$key)) {
-				continue;
-			}
-			if (is_string($default)) {
-				$layout->$key = (string) $stored->$key;
-			} elseif (is_numeric($stored->$key)) {
-				$layout->$key = is_int($default) ? (int) $stored->$key : (float) $stored->$key;
-			}
-		}
+	binloc_label_layout_overlay($layout, dolibarr_get_const($db, binloc_label_layout_const_name($fk_entrepot), $conf->entity));
+	if ($fk_level > 0) {
+		$layout->is_level_specific = binloc_label_layout_overlay($layout, dolibarr_get_const($db, binloc_label_layout_const_name($fk_entrepot, $fk_level), $conf->entity));
 	}
 
 	return binloc_label_layout_clamp($layout);
 }
 
 /**
- * Persist the label layout of a warehouse
+ * Persist a label layout (warehouse default, or one level's override)
  *
  * @param  DoliDB   $db          Database handler
  * @param  int      $fk_entrepot Warehouse ID
  * @param  stdClass $layout      Layout object
+ * @param  int      $fk_level    Level rowid (0 = warehouse default)
  * @return int                   >0 if OK, <0 if KO
  */
-function binloc_save_label_layout($db, $fk_entrepot, $layout)
+function binloc_save_label_layout($db, $fk_entrepot, $layout, $fk_level = 0)
 {
 	global $conf;
 
 	require_once DOL_DOCUMENT_ROOT.'/core/lib/admin.lib.php'; // dolibarr_set_const
 
 	binloc_label_layout_clamp($layout);
-	return dolibarr_set_const($db, 'BINLOC_LABEL_LAYOUT_'.((int) $fk_entrepot), json_encode($layout), 'chaine', 0, '', $conf->entity);
+	// Only the declared fields are stored — never the resolution flags
+	$store = new stdClass();
+	foreach (array_keys(get_object_vars(binloc_label_layout_defaults())) as $key) {
+		$store->$key = $layout->$key;
+	}
+	return dolibarr_set_const($db, binloc_label_layout_const_name($fk_entrepot, $fk_level), json_encode($store), 'chaine', 0, '', $conf->entity);
+}
+
+/**
+ * Remove one level's layout override so it falls back to the warehouse default
+ *
+ * @param  DoliDB $db          Database handler
+ * @param  int    $fk_entrepot Warehouse ID
+ * @param  int    $fk_level    Level rowid
+ * @return int                 >0 if OK, <0 if KO
+ */
+function binloc_delete_label_layout($db, $fk_entrepot, $fk_level)
+{
+	global $conf;
+
+	require_once DOL_DOCUMENT_ROOT.'/core/lib/admin.lib.php'; // dolibarr_del_const
+
+	if ($fk_level <= 0) {
+		return 0;
+	}
+	return dolibarr_del_const($db, binloc_label_layout_const_name($fk_entrepot, $fk_level), $conf->entity);
 }
 
 /**
@@ -414,7 +484,10 @@ function binloc_label_layout_css($layout)
 	$css .= ' '.binloc_css_num($layout->pad_bottom_mm).'mm '.binloc_css_num($layout->pad_left_mm).'mm;';
 	$css .= ' font-size: '.binloc_css_num($layout->font_pt).'pt;';
 	$css .= ($layout->border_mm > 0 ? ' border-width: '.binloc_css_num($layout->border_mm).'mm;' : ' border: none;');
-	$css .= ' }';
+	$css .= ' }'."\n";
+	// Corner tag sized in absolute pt: it is read from further away than the
+	// body text (signage rule of thumb: character height = distance / 200)
+	$css .= '.binloc-label-corner { font-size: '.binloc_css_num($layout->corner_pt).'pt; }';
 	return '<style>'."\n".$css."\n".'</style>'."\n";
 }
 

@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.9.0] - 2026-09-12
+
+### Added
+- **Labels for any level** — "Print labels for: [level]" on the Bin Labels page. A label at a level is identified by the path from the top down to it (the full code, identical to the system's location code), and lists everything assigned below it grouped by the next level down; deeper sub-paths print compactly on each item (`B3 · PART-1`). A tag per shelf, per bag, per rack — same page, one dropdown.
+- **Corner tag** — the label's own level value, top-right, with its own point size (default 18 pt, 0 hides it) so it can be sized for reading distance independently of the body text (rule of thumb: character height in cm ≈ distance in cm ÷ 200).
+- **Value description on the label** — the own-level value's description ("Left Rack") prints under the title, in the space the "Contents" header used to take. Toggle per layout.
+- **Empty bins** — "Include empty bins" enumerates every configured value combination down to the label level (dropdown/letter levels; fix a free-text level with its filter to enumerate below it) so not-yet-stocked shelving gets tags. Transient: nothing is stored. Capped, with a notice when the cap or an un-enumerable level stops it.
+- **Per-level layouts** — the layout panel edits the layout for the selected level; "Save for <level>" stores an override, "Save as warehouse default" the fallback, "Use warehouse default" removes the override.
+- **Developer seam** — `lib/binloc_bins.lib.php` holds the bin model (grouping, enumeration, canonical bin identity) for the future WMS extension; see `docs/WMS-EXTENSION.md`.
+
+### Changed
+- The "Contents" header is gone from labels.
+- The "sub-bin level" setting is retired — grouping is always the next level down from the label level. A previously stored value is honoured as the default label level.
+
 ## [2.8.0] - 2026-09-09
 
 ### Fixed

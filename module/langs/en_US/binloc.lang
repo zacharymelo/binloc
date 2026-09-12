@@ -128,14 +128,25 @@ NoProductsInWarehouseYet = No products with stock or a bin assignment in this wa
 # Bin labels
 #
 BinLabels = Bin Labels
-BinLabelsDesc = Generate printable labels for the bins in use. Narrow by location with the level filters, or by product with the search — one label per distinct bin, showing the bin code and its contents.
+BinLabelsDesc = Printable labels for one level of the warehouse (a tag per shelf, per bag…). Each label shows its full location code, its own level value in the corner, and what is assigned below it. Narrow by location with the level filters, or by product with the search; tick "include empty bins" to also tag configured bins that hold nothing yet.
 PrintLabels = Print labels
 NoBinsMatch = No bins match the current selection
-BinContents = Contents
-LabelsCount = %s label(s)
+LabelsCountFor = %s label(s) — one per %s
+LabelPrintFor = Print labels for:
+LabelIncludeEmpty = Include empty bins
+LabelIncludeEmptyHint = Also generate a label for every configured combination of values down to this level (dropdown and letter levels only — fix a text level with its filter to enumerate below it). Nothing is stored; this only affects what prints.
+LabelUnenumerable = Empty bins were not added: "%s" is a free-text/number level with no filter value, so its bins cannot be enumerated. Set a value in its filter to enumerate below it.
+LabelEnumTruncated = Empty-bin enumeration stopped at %s — narrow the selection with the level filters.
 BinValueLegend = Key
 LabelLayout = Label layout
-LabelLayoutDesc = Per-warehouse sizing for printed labels. Top padding leaves a blank strip at the top of every label (e.g. 21 mm for slide-in bin holders). Labels print edge to edge with no gap, so a sheet can be cut with a single slice between labels. Height 0 sizes each row automatically.
+LabelLayoutFor = Label layout — %s
+LabelLayoutIsOverride = (this level has its own layout)
+LabelLayoutIsDefault = (using the warehouse default)
+LabelLayoutSaveForLevel = Save for %s
+LabelLayoutSaveAsDefault = Save as warehouse default
+LabelLayoutReset = Use warehouse default
+LabelLayoutResetDone = Level layout removed — the warehouse default applies again
+LabelLayoutDesc = Sizing for printed labels, per warehouse with an optional override per level (a bag tag and a shelf tag differ in stock and reading distance). Top padding leaves a blank strip at the top of every label (e.g. 21 mm for slide-in bin holders). Labels print edge to edge with no gap, so a sheet can be cut with a single slice between labels. Height 0 sizes each row automatically. Rule of thumb for the corner tag: character height in cm ≈ reading distance in cm ÷ 200 (2 m → ~1 cm ≈ 28 pt).
 LabelWidthMm = Width (mm)
 LabelHeightMm = Height (mm, 0 = auto)
 LabelPadTopMm = Padding top (mm)
@@ -143,12 +154,11 @@ LabelPadRightMm = Padding right (mm)
 LabelPadBottomMm = Padding bottom (mm)
 LabelPadLeftMm = Padding left (mm)
 LabelFontPt = Font size (pt)
+LabelCornerPt = Corner tag size (pt, 0 = hide)
 LabelBorderMm = Border (mm, 0 = none)
 LabelSheetMarginMm = Sheet margin (mm)
 LabelCodeSep = Code separator
-LabelSubLevel = Sub-bin level
-LabelSubLevelAuto = Automatic (deepest level)
-LabelSubLevelNone = None (one label per full bin)
+LabelShowDescription = Show value description
 LabelShowBatch = Show lot/serial
 LabelShowProductLabel = Show product names
 LabelLayoutSaved = Label layout saved
