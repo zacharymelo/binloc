@@ -112,19 +112,21 @@
 }
 
 .binloc-label {
+	display: flow-root; /* contains the floated corner tag */
 	border: 0.3mm solid var(--bordercolor, rgba(0, 0, 0, 0.5));
 	break-inside: avoid;
 	page-break-inside: avoid;
 }
 
-/* Title (full code) left, corner tag (own level value) right — the corner's
-   font-size is emitted per layout in absolute pt (reading-distance sized) */
-.binloc-label-head {
-	display: flex;
-	justify-content: space-between;
-	align-items: flex-start;
-	gap: 0.5em;
-	margin-bottom: 4px;
+/* Corner tag (own level value): floats top-right so the title, description
+   and contents wrap beside it and reclaim the full width below it. Its
+   font-size is emitted per layout in absolute pt (reading-distance sized). */
+.binloc-label-corner {
+	float: right;
+	margin: 0 0 0.15em 0.4em;
+	font-family: monospace;
+	font-weight: bold;
+	line-height: 1;
 }
 
 .binloc-label-code {
@@ -133,22 +135,12 @@
 	font-weight: bold;
 	letter-spacing: 0.06em;
 	word-break: break-all;
-}
-
-.binloc-label-corner {
-	font-family: monospace;
-	font-weight: bold;
-	line-height: 1;
-	flex-shrink: 0;
+	margin-bottom: 0.15em;
 }
 
 .binloc-label-descline {
 	font-size: 1.1em;
 	margin-bottom: 4px;
-}
-
-.binloc-label-empty .binloc-label-head {
-	margin-bottom: 0;
 }
 
 .binloc-label-subpath {
@@ -161,6 +153,7 @@
 }
 
 .binloc-label-subbin {
+	display: flow-root; /* its rule stops at the floated corner tag instead of running under it */
 	font-size: 0.9em;
 	margin-top: 6px;
 	padding-top: 4px;

@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.13.1] - 2026-09-13
+
+### Changed
+- **Label corner tag no longer pushes the contents down.** The tag now floats top-right; the title, description and contents wrap beside it and take the full width below it, so a large reading-distance tag stops leaving a blank strip under the title. Sub-bin rules stop at the tag instead of running under it.
+
 ## [2.13.0] - 2026-09-13
 
 ### Added

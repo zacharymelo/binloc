@@ -158,12 +158,13 @@ function binloc_labels_render_cards($bins, $layout)
 		// the rack; its shelves carry their own labels) or the bin is empty
 		$identity_only = empty($layout->show_contents) || $bin->is_empty;
 		$html .= '<div class="binloc-label'.($identity_only ? ' binloc-label-empty' : '').'">';
-		$html .= '<div class="binloc-label-head">';
-		$html .= '<div class="binloc-label-code">'.dol_escape_htmltag($bin->code).'</div>';
+		// The corner tag comes first and floats right, so the title,
+		// description and contents wrap beside it and take the full width
+		// below it — a tall tag no longer pushes the contents down
 		if ($layout->corner_pt > 0 && $bin->own_value !== '') {
 			$html .= '<div class="binloc-label-corner">'.dol_escape_htmltag($bin->own_value).'</div>';
 		}
-		$html .= '</div>';
+		$html .= '<div class="binloc-label-code">'.dol_escape_htmltag($bin->code).'</div>';
 		if (!empty($layout->show_description) && $bin->own_description !== '') {
 			$html .= '<div class="binloc-label-descline">'.dol_escape_htmltag($bin->own_description).'</div>';
 		}
@@ -219,7 +220,7 @@ if ($output === 'print' && $fk_entrepot > 0) {
 	print '<html><head>'."\n";
 	print '<meta charset="utf-8">'."\n";
 	print '<title>'.dol_escape_htmltag($langs->trans('BinLabels')).'</title>'."\n";
-	print '<link rel="stylesheet" href="'.$css_url.'?v=2.13.0">'."\n";
+	print '<link rel="stylesheet" href="'.$css_url.'?v=2.13.1">'."\n";
 	print binloc_label_layout_css($layout);
 	print binloc_label_print_css($layout);
 	print '</head><body class="binloc-print-body binloc-print-'.dol_escape_htmltag($layout->print_mode).'">'."\n";

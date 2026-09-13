@@ -1,6 +1,6 @@
 # Binloc User Guide
 
-This guide covers everything a warehouse admin or operator does with Binloc day to day. It matches version **2.13.0**. Most fields in the module also carry a **?** hover tooltip with the same information in short form.
+This guide covers everything a warehouse admin or operator does with Binloc day to day. It matches version **2.13.1**. Most fields in the module also carry a **?** hover tooltip with the same information in short form.
 
 ## Contents
 
