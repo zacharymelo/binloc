@@ -250,6 +250,25 @@
 	font-weight: bold;
 }
 
+/* Dolibarr's "?" help picto next to a small uppercase caption: keep it
+   legible and off the baseline, and let hover show it at full strength */
+.binloc-field-caption .binloc-help {
+	font-size: 1.3em;
+	margin-left: 3px;
+	vertical-align: -0.15em;
+	opacity: 0.7;
+}
+
+.binloc-check .binloc-help,
+.binloc-card-title .binloc-help {
+	margin-left: 3px;
+	opacity: 0.7;
+}
+
+.binloc-help:hover {
+	opacity: 1;
+}
+
 .binloc-field-primary select {
 	font-weight: bold;
 }

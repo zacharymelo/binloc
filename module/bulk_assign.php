@@ -78,7 +78,7 @@ if ($fk_entrepot > 0) {
 	} else {
 		// ---- Quick assign: any product (with or without stock here) into a bin ----
 		print '<div class="binloc-card" id="binloc-quick-panel">';
-		print '<div class="binloc-card-title">'.$langs->trans('QuickAssignTitle').'</div>';
+		print '<div class="binloc-card-title">'.$form->textwithpicto($langs->trans('QuickAssignTitle'), $langs->trans('QuickAssignHint'), 1, 'help', 'valignmiddle binloc-help', 1).'</div>';
 		print '<div class="opacitymedium small marginbottomonly">'.$langs->trans('QuickAssignDesc').'</div>';
 		print '<div class="binloc-inline-form">';
 		$form->select_produits(0, 'quick_fk_product', '', 0, 0, -1, 2, '', 1, array(), 0, '1', 0, 'minwidth200', 1);
@@ -158,12 +158,12 @@ if ($fk_entrepot > 0) {
 			));
 
 			print '<div class="margintoponly">';
-			print '<button type="button" class="button" id="binloc-bulk-save">'.dol_escape_htmltag($langs->trans('BulkSaveAll')).'</button>';
+			print '<button type="button" class="button" id="binloc-bulk-save" title="'.dol_escape_htmltag($langs->trans('BulkSaveAllHint')).'">'.dol_escape_htmltag($langs->trans('BulkSaveAll')).'</button>';
 			print '</div>';
 
 			// ---- Batch set panel (fills checked rows client-side, then Save All persists) ----
 			print '<div class="binloc-batch-panel" id="binloc-batch-panel">';
-			print '<strong>'.$langs->trans('SetSelectedTo').':</strong>';
+			print '<strong>'.$form->textwithpicto($langs->trans('SetSelectedTo'), $langs->trans('SetSelectedToHint'), 1, 'help', 'valignmiddle binloc-help', 1).':</strong>';
 			print '<div class="binloc-inline-form margintoponly">';
 			print binloc_render_level_inputs($wh_levels, 'batch_', array(), 'flat width75 binloc-level-input');
 			print '<button type="button" class="button smallpaddingimp" id="binloc-batch-apply">'.dol_escape_htmltag($langs->trans('Apply')).'</button>';

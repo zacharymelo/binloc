@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.13.0] - 2026-09-13
+
+### Added
+- **Hover help** on the new features: Dolibarr "?" tooltips on every field of the Bin Labels toolbar and layout panel (what each level filter does, how Output modes differ, what the corner tag and descriptions are, what each Save button stores), on the Warehouse Levels editor (level types including Letter, Generate letters, value codes, Disable/Enable/Delete semantics), and on the bulk-assign quick-assign, batch and Save All actions.
+- **Documentation** — README and the in-app user guide rewritten for 2.4–2.13: letter levels and generation, value descriptions and the Key, quick-assign for stockless products, reload-free value entry, CSV letter shorthand, and a full Bin Labels chapter (levels, label anatomy, empty bins, per-level layouts, every layout setting, sheet vs label-printer output with Dymo guidance). The developer-facing extension notes are linked from the README.
+
 ## [2.12.0] - 2026-09-12
 
 ### Added

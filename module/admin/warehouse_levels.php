@@ -25,6 +25,7 @@ if (!$res && file_exists("../../../main.inc.php")) { $res = @include "../../../m
 if (!$res) { die("Include of main fails"); }
 
 require_once DOL_DOCUMENT_ROOT.'/core/lib/admin.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/core/class/html.form.class.php';
 dol_include_once('/binloc/lib/binloc.lib.php');
 dol_include_once('/binloc/class/binlocwarehouselevel.class.php');
 dol_include_once('/binloc/class/binloclevaloption.class.php');
@@ -40,6 +41,7 @@ $fk_entrepot = GETPOSTINT('fk_entrepot');
 
 $levelObj  = new BinlocWarehouseLevel($db);
 $optionObj = new BinlocLevelOption($db);
+$form      = new Form($db); // textwithpicto() for the "?" hover help
 
 // Placeholder hints per depth
 $level_hints = array(
@@ -280,7 +282,7 @@ if ($fk_entrepot > 0) {
 				print '</option>';
 			}
 			print '</select>';
-			print ' <input type="submit" class="button smallpaddingimp" value="'.dol_escape_htmltag($langs->trans('CopyLevels')).'">';
+			print ' <input type="submit" class="button smallpaddingimp" value="'.dol_escape_htmltag($langs->trans('CopyLevels')).'" title="'.dol_escape_htmltag($langs->trans('CopyLevelsHint')).'">';
 			print '</form>';
 			print '</div>';
 		}
@@ -299,8 +301,8 @@ if ($fk_entrepot > 0) {
 	print '<tbody>';
 	print '<tr class="liste_titre">';
 	print '<td class="center" width="60">'.$langs->trans('Level').'</td>';
-	print '<td width="220">'.$langs->trans('LevelLabel').'</td>';
-	print '<td width="140">'.$langs->trans('Type').'</td>';
+	print '<td width="220">'.$form->textwithpicto($langs->trans('LevelLabel'), $langs->trans('LevelLabelHelp'), 1, 'help', 'valignmiddle binloc-help', 1).'</td>';
+	print '<td width="140">'.$form->textwithpicto($langs->trans('Type'), $langs->trans('LevelTypeHelp'), 1, 'help', 'valignmiddle binloc-help', 1).'</td>';
 	print '<td>'.$langs->trans('Status').'</td>';
 	print '<td class="center" width="100"></td>';
 	print '</tr>';
@@ -357,7 +359,7 @@ if ($fk_entrepot > 0) {
 	print '</template>';
 
 	print '<div class="margintoponly">';
-	print '<a href="#" id="binloc-add-level" class="button smallpaddingimp">';
+	print '<a href="#" id="binloc-add-level" class="button smallpaddingimp" title="'.dol_escape_htmltag($langs->trans('AddLevelHint')).'">';
 	print img_picto('', 'add', 'class="pictofixedwidth"').$langs->trans('AddLevel');
 	print '</a>';
 	print '</div>';
@@ -388,11 +390,10 @@ if ($fk_entrepot > 0) {
 				// A named submit of the SAME universal form: pending edits elsewhere
 				// on the page are saved first, then the range is generated.
 				print '<div class="binloc-inline-form marginbottomonly">';
-				print '<label>'.$langs->trans('GenerateUpTo').' ';
+				print '<label>'.$form->textwithpicto($langs->trans('GenerateUpTo'), $langs->trans('GenerateLettersHint'), 1, 'help', 'valignmiddle binloc-help', 1).' ';
 				print '<input type="text" name="generate_upto_'.$level_id.'" class="flat width50" maxlength="2" placeholder="Z" title="'.dol_escape_htmltag($langs->trans('GenerateUpToHint')).'">';
 				print '</label>';
-				print ' <button type="submit" name="generateletters" value="'.$level_id.'" class="button smallpaddingimp">'.dol_escape_htmltag($langs->trans('GenerateLetters')).'</button>';
-				print ' <span class="opacitymedium small">'.$langs->trans('GenerateUpToHint').'</span>';
+				print ' <button type="submit" name="generateletters" value="'.$level_id.'" class="button smallpaddingimp" title="'.dol_escape_htmltag($langs->trans('GenerateLettersHint')).'">'.dol_escape_htmltag($langs->trans('GenerateLetters')).'</button>';
 				print '</div>';
 			}
 
@@ -401,7 +402,7 @@ if ($fk_entrepot > 0) {
 				$refs = $optionObj->countReferences($opt->id);
 				print '<tr class="oddeven'.($opt->active ? '' : ' binloc-legacy').'">';
 				print '<td>';
-				print '<input type="text" name="opt_value['.$opt->id.']" class="flat width100" value="'.dol_escape_htmltag($opt->value).'">';
+				print '<input type="text" name="opt_value['.$opt->id.']" class="flat width100" value="'.dol_escape_htmltag($opt->value).'" title="'.dol_escape_htmltag($langs->trans('OptionValueHint')).'">';
 				print ' <input type="text" name="opt_desc['.$opt->id.']" class="flat minwidth150" value="'.dol_escape_htmltag($opt->description).'" placeholder="'.dol_escape_htmltag($langs->trans('OptionDescription')).'" title="'.dol_escape_htmltag($langs->trans('OptionDescriptionHint')).'">';
 				print '</td>';
 				print '<td class="opacitymedium small">';
@@ -414,9 +415,9 @@ if ($fk_entrepot > 0) {
 				}
 				print '</td>';
 				print '<td class="center nowraponall">';
-				print '<button type="submit" name="toggleoption" value="'.$opt->id.'" class="button smallpaddingimp">'.($opt->active ? $langs->trans('Disable') : $langs->trans('Enable')).'</button>';
+				print '<button type="submit" name="toggleoption" value="'.$opt->id.'" class="button smallpaddingimp" title="'.dol_escape_htmltag($langs->trans($opt->active ? 'OptionDisableHint' : 'OptionEnableHint')).'">'.($opt->active ? $langs->trans('Disable') : $langs->trans('Enable')).'</button>';
 				if ($refs === 0) {
-					print ' <button type="submit" name="deleteoption" value="'.$opt->id.'" class="button smallpaddingimp">'.img_picto($langs->trans('Delete'), 'delete').'</button>';
+					print ' <button type="submit" name="deleteoption" value="'.$opt->id.'" class="button smallpaddingimp" title="'.dol_escape_htmltag($langs->trans('OptionDeleteHint')).'">'.img_picto($langs->trans('Delete'), 'delete').'</button>';
 				}
 				print '</td>';
 				print '</tr>';
@@ -437,7 +438,7 @@ if ($fk_entrepot > 0) {
 
 			print '</table>';
 			print '<div class="margintoponly">';
-			print '<a href="#" class="binloc-add-value smallpaddingimp">'.img_picto('', 'add', 'class="pictofixedwidth"').$langs->trans('AddValue').'</a>';
+			print '<a href="#" class="binloc-add-value smallpaddingimp" title="'.dol_escape_htmltag($langs->trans('AddValueHint')).'">'.img_picto('', 'add', 'class="pictofixedwidth"').$langs->trans('AddValue').'</a>';
 			print ' <span class="opacitymedium small">'.$langs->trans('AddValueEnterHint').'</span>';
 			print '</div>';
 			print '</div>';
@@ -446,7 +447,7 @@ if ($fk_entrepot > 0) {
 
 	// Universal save: one button for level rows, option edits and new values
 	print '<div class="margintoponly">';
-	print '<input type="submit" class="button" value="'.dol_escape_htmltag($langs->trans('Save')).'">';
+	print '<input type="submit" class="button" value="'.dol_escape_htmltag($langs->trans('Save')).'" title="'.dol_escape_htmltag($langs->trans('LevelsSaveHint')).'">';
 	print '</div>';
 
 	print '</form>';

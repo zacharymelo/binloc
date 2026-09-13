@@ -1,6 +1,6 @@
 # Binloc User Guide
 
-This guide covers everything a warehouse admin or operator does with Binloc day to day. It matches version **2.3.0**.
+This guide covers everything a warehouse admin or operator does with Binloc day to day. It matches version **2.13.0**. Most fields in the module also carry a **?** hover tooltip with the same information in short form.
 
 ## Contents
 
@@ -8,35 +8,42 @@ This guide covers everything a warehouse admin or operator does with Binloc day 
 2. [Setting up a warehouse's bin layout](#setting-up-a-warehouses-bin-layout)
 3. [Assigning products to bins](#assigning-products-to-bins)
 4. [Finding things: explore by bin](#finding-things-explore-by-bin)
-5. [Spreadsheet workflow: CSV import/export](#spreadsheet-workflow-csv-importexport)
-6. [Serialized / lot-tracked products](#serialized--lot-tracked-products)
-7. [Settings](#settings)
-8. [Permissions](#permissions)
-9. [Troubleshooting](#troubleshooting)
+5. [Printing bin labels](#printing-bin-labels)
+6. [Spreadsheet workflow: CSV import/export](#spreadsheet-workflow-csv-importexport)
+7. [Serialized / lot-tracked products](#serialized--lot-tracked-products)
+8. [Settings](#settings)
+9. [Permissions](#permissions)
+10. [Troubleshooting](#troubleshooting)
 
 ---
 
 ## Concepts
 
-- **Levels** describe how a warehouse is physically organized, from coarsest to finest — for example *Row → Bay → Shelf → Bin*, or *Case → Drawer*. Each warehouse defines its own levels (up to any depth); there is no global scheme.
+- **Levels** describe how a warehouse is physically organized, from coarsest to finest — for example *Row → Bay → Shelf → Bin*, or *Side → Depth → Level → Row → Bin → Bag*. Each warehouse defines its own levels (any depth); there is no global scheme.
 - Each level has a **type**:
   - **Text** — free entry (e.g. Row "R1", "R2")
   - **Number** — numeric entry only
   - **Dropdown** — pick from a managed list of allowed values (e.g. Shelf "A", "B", "C")
+  - **Letter** — a dropdown whose values are letter codes: A to Z, continuing into AA, AB … ZZ. You generate the range in one step instead of typing each value. Otherwise it behaves exactly like a Dropdown.
+- A **value** of a Dropdown or Letter level has a short **code** (what appears in the bin name and on inputs — `L`) and an optional **description** (what it means — `Left Rack`). Keep codes short; put the meaning in the description. Descriptions show as tooltips, in a **Key** legend on the bulk, warehouse and label pages, and on printed labels.
+- A **bin** is a distinct combination of level values. Bins are not records — a bin exists because something is assigned there, or because its values are configured (which is what lets empty bins be printed). The **bin code** is the values joined in level order: Side `A`, Rack `L`, Slot `2`, Shelf `5`, Row `3`, Column `B`, Bag `3` → `AL253B3` (a separator can be configured for labels).
 - A **bin location** (assignment) is one product's coordinates in one warehouse: a value for some or all of that warehouse's levels, plus an optional note. Non-serialized products get one assignment per warehouse; serialized/lot products get one per lot — and a serial can only be in one place at a time.
-- Dropdown values are referenced, not copied: **renaming a value updates every assignment that uses it, instantly**. A value that is in use cannot be deleted — you can *disable* it instead, which hides it from new entry while existing assignments keep displaying it (marked "legacy").
+- Dropdown and Letter values are referenced, not copied: **renaming a value updates every assignment that uses it, instantly**. A value that is in use cannot be deleted — you can *disable* it instead, which hides it from new entry while existing assignments keep displaying it (marked "legacy").
 
 ## Setting up a warehouse's bin layout
 
-**Home → Setup → Modules → Bin Locations → Warehouse Levels** (or the *Manage Levels* button on a warehouse's Bin Locations tab).
+**Left menu → Warehouse Levels** (also under module setup, or via the *Manage Levels* button on a warehouse's Bin Locations tab).
+
+The whole page is **one form with one Save button**. Level rows, every value and description, and any new values you have queued are saved together — you never lose an edit by clicking something else on the page.
 
 1. Pick the warehouse.
-2. Add levels with the **Add level** button; give each a name and type. Reorder with the ↑/↓ arrows — order is display order only and never affects stored data.
-3. **Save**.
-4. For each Dropdown level, an **Allowed Values** editor appears below. Add values there; each value shows how many locations currently use it.
-   - **Rename** updates every existing assignment.
-   - **Disable** hides a value from new entry without touching existing assignments.
-   - **Delete** is only offered while nothing uses the value.
+2. Add levels with **Add level**; give each a name and type. Reorder with the ↑/↓ arrows — order is display order (and bin-code order) and never affects stored data.
+3. **Save**. A Dropdown or Letter level then shows its **Allowed Values** editor below.
+4. In each values editor:
+   - Each row has the **code**, its **description**, how many locations use it, and **Disable / Enable / Delete**.
+   - **Add value** appends an empty row; pressing **Enter** in a new-value field starts the next one, so a long list is *type-Enter-type-Enter*, then one Save. Nothing is written until you save.
+   - **Letter levels** have **Generate letters up to** — enter `Z` for A–Z, or a double letter such as `AC` to continue past Z into AA, AB, AC. Only missing codes are added; existing ones (and their descriptions) are untouched, so you can extend the range later.
+   - **Disable** hides a value from new entry without touching existing assignments; **Delete** is only offered while nothing uses the value. Both save your pending edits first.
    - "used by N location(s)" is a link — click it to see exactly which products those are.
 5. To reuse a layout, either use **Copy from warehouse** (only offered while the target has no levels) or the CSV layout import (below).
 
@@ -46,12 +53,14 @@ Removing a level that still holds data does not destroy anything: the level is d
 
 There are five ways in, all writing the same data:
 
+- **Bulk Bin Assignment** (left menu, under Stock) — the main tool. Pick a warehouse; the table lists every product with stock there **or with a bin assignment there**, one editable row each. Type into any row and **Save All**.
+  - **Add a product to a bin** (the panel at the top) assigns *any* product — including one with no stock in this warehouse yet — pick it, set the bin, **Assign bin**. It then appears in the table. Use this to give incoming goods a home before they arrive.
+  - The **↓** arrow on a row copies its values down into empty cells of the rows below.
+  - Tick rows and use the **Set selected products to** panel to set the same values on all of them; it asks for confirmation naming the fields and row count, and only writes the fields you filled.
+  - Blank inputs never erase stored values on save; clearing a row is an explicit action (trash icon on the row).
+  - The list paginates; the rows-per-page selector and page links keep your search.
 - **Product card → Bin Locations tab** — everything about one product: warehouses with stock but no bin yet (with an *Assign Location* button), current assignments (edit/remove inline), and *Add to Other Warehouse*.
 - **Warehouse card → Bin Locations tab** — every located product in one warehouse, with inline edit (pencil) and remove (trash) per row.
-- **Bulk Bin Assignment** (left menu, under Stock) — every product with stock in a warehouse in one editable table. Type into any row and *Save All*. Extras:
-  - The **↓** arrow on a row copies its values down into empty cells of the rows below.
-  - Tick rows and use the **batch panel** to set the same values on all of them; it asks for confirmation naming the fields and row count, and only writes the fields you filled.
-  - Blank inputs never erase stored values on save; clearing a row is an explicit action (trash icon on the row).
 - **Reception card → Bin Placement tab** — put received goods away line by line; the destination warehouse per line is pre-selected and changing it swaps the bin fields without losing what you typed.
 - **Manufacturing Order card → Bin Locations tab** — assign bins to serials produced by the MO (rows appear once the lot records exist).
 
@@ -59,12 +68,58 @@ There are five ways in, all writing the same data:
 
 On a warehouse's **Bin Locations** tab, the search bar has one filter per level next to the product search:
 
-- Dropdown levels filter by exact value (disabled/legacy values are listed too, so strays are findable).
+- Dropdown and Letter levels filter by exact value (disabled/legacy values are listed too, so strays are findable). Hover a value to see its description.
 - Text/number levels filter by partial match ("R" matches R1 and R2).
 
-Filters combine — Row = R1 **and** Shelf = A shows exactly what's in that bin. They survive sorting and pagination, and they live in the URL, so a filtered view can be bookmarked or shared.
+Filters combine — Row = R1 **and** Shelf = A shows exactly what's in that bin. They survive sorting and pagination, and they live in the URL, so a filtered view can be bookmarked or shared. The **Key** line above the table explains every code that has a description.
 
 From the admin side, every "used by N location(s)" link on the Warehouse Levels page opens this view pre-filtered to that value.
+
+## Printing bin labels
+
+**Left menu → Bin Labels.** Prints one label per bin at whichever level of the hierarchy you choose — a tag per shelf, per bag, per rack end.
+
+### What a label shows
+
+- **Title** — the bin's full code (`AL253B`), identical to the code the system uses. Pickers match the label against their pick list, so the two must never differ.
+- **Corner tag** — the label's own level value (`B` on a shelf label, `3` on a bag label), top right, in its own font size. It is what you look for from a distance; the title is what you confirm up close. Rule of thumb from signage practice: character height in cm ≈ reading distance in cm ÷ 200, so a shelf number read from 2 m wants ~1 cm ≈ 28 pt.
+- **Description** — the own value's description (`Blue Rack`) under the title.
+- **Contents** — everything assigned below the bin, grouped by the next level down (`Bag 3`, with each bag's products), with any deeper sub-path shown compactly on each item (`B3 · PART-1`). Product names and lot numbers are optional.
+
+### Choosing what to print
+
+1. Pick the **warehouse**.
+2. **Print labels for** — the level the labels are stuck on. *Shelf* gives one label per shelf listing its bags; *Bag* gives one per bag. The label's identity is the path from the top level down to this one.
+3. Narrow the selection:
+   - **Product** search — only bins holding matching products.
+   - **Level filters** — only bins under those values (e.g. Side L, Depth 2).
+   - **Include empty bins** — also print a label for every configured combination of values down to the chosen level, so shelving can be labelled before stock arrives. Nothing is stored; this only affects what prints. Only Dropdown/Letter levels can be enumerated — if a Text or Number level sits above the chosen level, fix it with its filter (e.g. Row = R5) and the levels below it enumerate. The page says so when a level blocks enumeration, and stops at 1000 labels.
+4. Check the preview, then **Print labels**. It opens a print-only page and the print dialog. The **Key** legend is shown on screen only — it is never printed, because on a sheet it would shift the first row and on a label printer it would burn a label.
+
+### Layouts: size, fonts, and what to show
+
+Open **Label layout — ‹level›** above the preview (admin right). Layouts are **per warehouse**, with an optional **override per level** — a bag tag and a shelf tag differ in stock and in reading distance. The badge in the header says whether the level has its own layout or is using the warehouse default.
+
+| Setting | Meaning |
+|---|---|
+| Width / Height (mm) | Label size as you read it. Height 0 = automatic (sheet output only). |
+| Padding top / right / bottom / left (mm) | Space between the label edge and its content. A large top padding leaves a blank strip at the top of every label — e.g. 21 mm for slide-in bin holders — without any hardcoded rectangle. |
+| Body (pt) | Base font size for the contents; the title is 1.7× this. |
+| Corner tag (pt) | Font size of the corner tag; 0 hides it. Size it for reading distance. |
+| Output | **Sheet**: labels flow edge to edge with zero gap on the paper you pick, so a sheet is cut with a single slice between labels; rows stretch to equal height. **Label printer**: one label per page, each page exactly Width × Height with no margin (see below). |
+| Border (mm) | 0 = none (pre-cut sticker stock). |
+| Margin (mm) | Blank margin around the grid on a sheet; ignored for label-printer output. |
+| Separator | Text between code parts: blank gives `R5B`, `-` gives `R5-B`. |
+| Show contents | Untick for identity-only labels — title, corner tag, description, nothing listed. Meant for the upper levels: a rack-end label names the rack; its shelves carry their own labels. |
+| Show value description / product names / lot-serial | What appears on the label. |
+
+Three buttons: **Save for ‹level›** stores an override for this level only; **Save as warehouse default** stores the fallback every level without its own layout uses; **Use warehouse default** removes this level's override.
+
+### Label printers (Dymo LabelWriter and similar)
+
+Roll printers advance one die-cut label per page, so set the level's layout to **Output: Label printer**, enter **Width and Height as the label stock** (Dymo 30252 address 89 × 28, 30256 shipping 102 × 59, 30334 multipurpose 57 × 32 mm) and usually **Border 0**. The print page then declares each label as its own page of exactly that size. In the print dialog choose the Dymo and the matching label size (the browser normally preselects it) and print at full scale, not fit-to-page. The printer itself has no notion of orientation — the driver rotates the page as needed — so enter the size as you read the label; the side that crosses the print head must be at most 56 mm on a LabelWriter. Verified on a LabelWriter 450.
+
+Because output is a layout setting and layouts are per level, bag tags can go to the roll printer while shelf labels stay on sheets.
 
 ## Spreadsheet workflow: CSV import/export
 
@@ -79,13 +134,15 @@ warehouse;level;label;type;allowed_values
 WH-A;1;Row;text;
 WH-A;2;Bay;number;
 WH-A;3;Shelf;list;A|B|C
-WH-B;1;Aisle;text;
+WH-B;1;Side;letter;C
 WH-B;2;Bin;list;X|Y|Z
 ```
 
-- One row per level. `warehouse` is the warehouse ref; `level` is the position (1 = coarsest); `type` is `text`, `number` or `list`; `allowed_values` is pipe-separated and only used for `list`.
+- One row per level. `warehouse` is the warehouse ref; `level` is the position (1 = coarsest); `type` is `text`, `number`, `list` or `letter`; `allowed_values` is pipe-separated and only used for `list` and `letter`.
+- **Letter shorthand**: for a `letter` level, a single end code in `allowed_values` means the whole range — `Z` generates A–Z, `AC` continues past Z into AA, AB, AC. A pipe-separated list (`A|C|E`) is still taken literally. Export writes a clean, gapless range back as the shorthand, so exported files stay readable.
 - Import matches existing levels **by label** (case-insensitive): matching levels are updated in place, new labels create new levels, and missing allowed values are added.
 - Import is **additive** — it never deletes levels or values. Levels in the database but not in the file are kept (and reported as such in the preview).
+- Value descriptions are not part of the layout CSV; set them on the Warehouse Levels page.
 - Both `,` and `;` delimiters are accepted; UTF-8 (with or without BOM).
 
 ### Assignments CSV — products into bins, per warehouse
@@ -99,7 +156,7 @@ P4;Serialized product;LOT001;R2;1;B;
 - Header: `product`, `product_label` (informational, ignored on import), `lot` (batch number, empty for non-serialized), **one column per level label**, `note`.
 - Rows are upserts matched on product ref + lot.
 - **Level columns present in the file are authoritative**: an empty cell clears that level; a row with all level cells empty removes the assignment entirely. Level columns you leave out of the file are left untouched.
-- A dropdown value not in the allowed list makes the row an error — unless you tick **Create missing dropdown values**, in which case the preview shows each value that will be added.
+- A dropdown or letter value not in the allowed list makes the row an error — unless you tick **Create missing dropdown values**, in which case the preview shows each value that will be added.
 - Unknown product refs or lot numbers are always errors (the import never creates products or lots).
 
 There's also an **Export assignments (CSV)** button directly on each warehouse's Bin Locations tab.
@@ -114,7 +171,7 @@ There's also an **Export assignments (CSV)** button directly on each warehouse's
 
 **Home → Setup → Modules → Bin Locations → Settings**
 
-- **Auto-clear location when stock drops to zero** — when a (non-serialized) product's stock in a warehouse reaches zero, its bin assignment there is removed automatically. Lot assignments are not touched by this.
+- **Auto-clear location when stock drops to zero** — when a (non-serialized) product's stock in a warehouse reaches zero, its bin assignment there is removed automatically. Lot assignments are not touched by this. Note that a product assigned before any stock arrived is only affected once stock has come *and gone*; a pre-assignment with no movements stays.
 - **Debug Mode** — enables the read-only diagnostics endpoint at `/custom/binloc/ajax/debug.php` (admins only): table counts, migration status, integrity checks, level configs.
 
 The Settings page also shows the **database migration status banner** (see Troubleshooting).
@@ -123,13 +180,17 @@ The Settings page also shows the **database migration status banner** (see Troub
 
 | Right | Allows |
 |---|---|
-| *Read bin locations* | viewing all tabs and exporting CSVs |
-| *Create/modify bin locations* | assigning/editing/removing bins, bulk assign, importing assignment CSVs |
-| *Configure warehouse levels* | the Warehouse Levels editor and layout CSV imports |
+| *Read bin locations* | viewing all tabs, the Bin Labels page and printing, exporting CSVs |
+| *Create/modify bin locations* | assigning/editing/removing bins, bulk assign and quick-assign, importing assignment CSVs |
+| *Configure warehouse levels* | the Warehouse Levels editor, value descriptions, layout CSV imports, and label layout settings |
 
 ## Troubleshooting
 
-- **"A database migration is pending" banner** (Settings page): appears after upgrading the module files from 1.x while the module stayed enabled. Click **Run migration**. Your data is converted in place; the destructive final step only runs after a verification pass confirms every value was migrated. On failure, the banner shows the failing step and a Retry button, and your legacy data is untouched.
+- **"A database migration is pending" banner** (Settings page): appears after upgrading the module files while the module stayed enabled (2.0.0 restructured storage; 2.4.0 added value descriptions). Click **Run migration**. Your data is converted in place; a destructive step only runs after a verification pass. On failure, the banner shows the failing step and a Retry button, and your existing data is untouched.
+- **Bin Labels is missing from the menu after an upgrade** — disable and re-enable the module once so Dolibarr registers the new menu entry.
 - **A value shows "(legacy)" in a dropdown** — the stored value was disabled or is no longer in the allowed list. It is never blanked automatically; either re-enable the value on the Warehouse Levels page, or pick a current value and save.
+- **"Empty bins were not added: ‹level› is a free-text/number level…"** on Bin Labels — a Text or Number level above the chosen label level cannot be enumerated. Set a value in that level's filter (e.g. Row = R5) and the levels below it enumerate.
+- **"Label printer mode needs a label height"** — set Height in the level's layout to the label stock; automatic height only works for sheets.
+- **Labels come out scaled or clipped on a label printer** — the print dialog picked the wrong stock or fit-to-page: choose the label size matching the layout's Width × Height and print at full scale.
 - **"Level N (legacy)" appears in a warehouse's levels** — the 1.x→2.x migration found stored bin data whose level configuration had been deleted. The data was preserved under this placeholder level; rename or fold it as you see fit.
 - **CSV import rejects the whole file** — that's by design: fix the listed lines and re-upload. Files with errors are never partially imported.

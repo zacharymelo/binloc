@@ -64,7 +64,7 @@ function binloc_print_assets()
 	}
 	$printed = true;
 
-	$v = '2.12.0';
+	$v = '2.13.0';
 	print '<link rel="stylesheet" href="'.dol_buildpath('/binloc/css/binloc.css', 1).'?v='.$v.'">'."\n";
 	print '<script src="'.dol_buildpath('/binloc/js/binloc.js', 1).'?v='.$v.'"></script>'."\n";
 	print '<script>Binloc.init({ajaxBase: "'.dol_escape_js(dol_buildpath('/binloc/ajax/', 1)).'", token: "'.newToken().'"});</script>'."\n";
@@ -255,7 +255,7 @@ function binloc_render_level_legend($level_cfgs)
 
 	// Chips (code + meaning) grouped per level, instead of one run-on sentence
 	$html = '<div class="binloc-legend">';
-	$html .= '<span class="binloc-legend-title">'.$langs->trans('BinValueLegend').'</span>';
+	$html .= '<span class="binloc-legend-title" title="'.dol_escape_htmltag($langs->trans('BinValueLegendHint')).'">'.$langs->trans('BinValueLegend').'</span>';
 	$html .= implode('', $groups);
 	$html .= '</div>';
 	return $html;

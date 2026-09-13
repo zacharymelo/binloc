@@ -276,3 +276,41 @@ BinLocationHint = Bin location
 AssignBinLocation = Assign bin location
 NoBinLocationAssigned = No bin location assigned
 SetSelectedTo = Set selected products to
+
+#
+# Hover help (tooltips on the "?" pictos and buttons)
+#
+LabelHelpWarehouse = Labels are per warehouse: each warehouse has its own levels, values and label layouts.
+LabelHelpPrintFor = The level the labels are stuck on. A label is identified by the path from the top level down to this one (its full code); everything assigned below it is its contents, grouped by the next level down. Pick Shelf for shelf tags, Bag for bag tags.
+LabelHelpProduct = Only bins holding products whose ref or label matches. While a product search is active, empty bins are not enumerated.
+LabelHelpLevelFilter = Only bins under this %s value. With "Include empty bins", fixing a value here is also what lets a free-text level be enumerated.
+LabelHelpRefresh = Apply the selection
+LabelHelpReset = Clear the search and filters
+PrintLabelsHint = Opens a print-only page and the print dialog. Sheet output: choose your paper. Label-printer output: choose the matching label stock and print at full scale, not fit-to-page.
+BinValueLegendHint = What each dropdown or letter code means, from the value descriptions on the Warehouse Levels page. Shown on screen only — never printed.
+LabelWidthHint = Label width as you read it. On a roll printer the shorter of width and height crosses the print head (Dymo LabelWriter: 56 mm max); orientation is handled by the printer driver.
+LabelPadHint = Space between the label edge and its content.
+LabelFontBodyHint = Base size for the contents; the title is 1.7 times this.
+LabelSheetMarginHint = Blank margin around the whole grid on a sheet. Ignored for label-printer output.
+LabelShowDescriptionHint = Prints the description of the label's own value under the title (e.g. "Left Rack" under "AL").
+LabelShowProductLabelHint = Product name next to the ref on each item.
+LabelShowBatchHint = Lot/serial number after each item that has one.
+LabelLayoutSaveForLevelHint = Stores these settings for this level only; other levels keep the warehouse default.
+LabelLayoutSaveAsDefaultHint = Stores these settings as the warehouse default, used by every level without its own layout.
+LabelLayoutResetHint = Removes this level's own layout so the warehouse default applies again.
+LevelTypeHelp = Text: free entry. Number: numeric entry. Dropdown: pick from a list of values you manage below. Letter: like Dropdown, but the values are letter codes (A–Z, then AA–ZZ) generated in one step instead of typed.
+LevelLabelHelp = Shown on inputs, filters and labels, and used as the column header in CSV files. Renaming a level never touches stored data.
+OptionValueHint = Short code that builds the bin name (e.g. L). Renaming it updates every assignment that uses it.
+OptionDisableHint = Hides the value from new entry; existing assignments keep showing it, marked (legacy). Pending edits on the page are saved first.
+OptionEnableHint = Makes the value available for new entry again. Pending edits on the page are saved first.
+OptionDeleteHint = Removes the value. Only offered while nothing uses it. Pending edits on the page are saved first.
+AddValueHint = Adds another empty row here; nothing is written until Save.
+LevelsSaveHint = Saves everything on this page at once: level rows, every value and description, and all new values.
+AddLevelHint = Adds a level row. Save to create it; a Dropdown or Letter level then shows its values editor below.
+CopyLevelsHint = Copies another warehouse's levels and values into this one. Only offered while this warehouse has no levels.
+GenerateLettersHint = Creates every missing code from A up to the one you enter: Z gives A–Z, AC continues past Z into AA, AB, AC. Existing values are kept. Pending edits on the page are saved first.
+QuickAssignHint = Any product, with or without stock here: pick it, set its bin, Assign. It then appears in the table below.
+BulkSaveAllHint = Saves every row that has a value. Blank inputs never erase stored values; rows marked with the trash icon are cleared.
+SetSelectedToHint = Fills the ticked rows with the values you enter here (only the fields you fill). Nothing is written until Save All.
+ConfirmSaveLayoutAsDefault = Save these settings as the warehouse default? Every level in this warehouse without a layout of its own will use them from now on.
+ConfirmResetLayout = Remove the %s layout and fall back to the warehouse default? The settings stored for %s will be lost.
