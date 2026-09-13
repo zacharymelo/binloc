@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.10.0] - 2026-09-12
+
+### Added
+- **"Show contents" layout toggle** — untick for identity-only labels (title, corner tag, value description, nothing listed). Meant for the upper levels: a rack-end label names the rack; its shelves carry their own labels. Per-level layouts let it be off for Rack and on for Bag in the same warehouse.
+
 ## [2.9.0] - 2026-09-12
 
 ### Added

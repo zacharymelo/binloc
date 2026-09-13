@@ -64,7 +64,7 @@ function binloc_print_assets()
 	}
 	$printed = true;
 
-	$v = '2.9.0';
+	$v = '2.10.0';
 	print '<link rel="stylesheet" href="'.dol_buildpath('/binloc/css/binloc.css', 1).'?v='.$v.'">'."\n";
 	print '<script src="'.dol_buildpath('/binloc/js/binloc.js', 1).'?v='.$v.'"></script>'."\n";
 	print '<script>Binloc.init({ajaxBase: "'.dol_escape_js(dol_buildpath('/binloc/ajax/', 1)).'", token: "'.newToken().'"});</script>'."\n";
@@ -305,6 +305,7 @@ function binloc_label_layout_defaults()
 	$layout->sheet_margin_mm = 0.0; // print-sheet margin around the whole grid
 	$layout->code_sep        = ''; // '' = values joined (AL253B3); e.g. '-' for A-L-2...
 	$layout->show_description = 1; // own level value's description under the title
+	$layout->show_contents   = 1; // 0 = identity only (title, corner, description) — e.g. rack-end labels
 	$layout->show_batch      = 1; // lot/serial batch on label items
 	$layout->show_product_label = 1; // product name next to the ref
 	return $layout;
@@ -330,6 +331,7 @@ function binloc_label_layout_clamp($layout)
 	$layout->sheet_margin_mm = max(0.0, min(50.0, (float) $layout->sheet_margin_mm));
 	$layout->code_sep        = dol_substr((string) $layout->code_sep, 0, 3);
 	$layout->show_description = empty($layout->show_description) ? 0 : 1;
+	$layout->show_contents   = empty($layout->show_contents) ? 0 : 1;
 	$layout->show_batch      = empty($layout->show_batch) ? 0 : 1;
 	$layout->show_product_label = empty($layout->show_product_label) ? 0 : 1;
 	return $layout;

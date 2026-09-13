@@ -159,6 +159,8 @@ LabelBorderMm = Border (mm, 0 = none)
 LabelSheetMarginMm = Sheet margin (mm)
 LabelCodeSep = Code separator
 LabelShowDescription = Show value description
+LabelShowContents = Show contents
+LabelShowContentsHint = Untick for identity-only labels (title, corner tag, description) — e.g. rack-end labels, where the shelves below carry their own labels. Set per level: off for Rack, on for Bag.
 LabelShowBatch = Show lot/serial
 LabelShowProductLabel = Show product names
 LabelLayoutSaved = Label layout saved

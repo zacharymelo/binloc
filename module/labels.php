@@ -75,6 +75,7 @@ if ($action === 'savelayout' && $fk_entrepot > 0) {
 	}
 	$layout->code_sep           = GETPOST('layout_code_sep', 'alphanohtml');
 	$layout->show_description   = GETPOST('layout_show_description', 'aZ09') ? 1 : 0;
+	$layout->show_contents      = GETPOST('layout_show_contents', 'aZ09') ? 1 : 0;
 	$layout->show_batch         = GETPOST('layout_show_batch', 'aZ09') ? 1 : 0;
 	$layout->show_product_label = GETPOST('layout_show_product_label', 'aZ09') ? 1 : 0;
 	$scope = GETPOST('layout_scope', 'aZ09');
@@ -150,7 +151,10 @@ function binloc_labels_render_cards($bins, $layout)
 {
 	$html = '<div class="binloc-label-sheet">';
 	foreach ($bins as $bin) {
-		$html .= '<div class="binloc-label'.($bin->is_empty ? ' binloc-label-empty' : '').'">';
+		// Identity-only when the layout hides contents (a rack-end label names
+		// the rack; its shelves carry their own labels) or the bin is empty
+		$identity_only = empty($layout->show_contents) || $bin->is_empty;
+		$html .= '<div class="binloc-label'.($identity_only ? ' binloc-label-empty' : '').'">';
 		$html .= '<div class="binloc-label-head">';
 		$html .= '<div class="binloc-label-code">'.dol_escape_htmltag($bin->code).'</div>';
 		if ($layout->corner_pt > 0 && $bin->own_value !== '') {
@@ -160,7 +164,7 @@ function binloc_labels_render_cards($bins, $layout)
 		if (!empty($layout->show_description) && $bin->own_description !== '') {
 			$html .= '<div class="binloc-label-descline">'.dol_escape_htmltag($bin->own_description).'</div>';
 		}
-		if (!$bin->is_empty) {
+		if (!$identity_only) {
 			$html .= '<div class="binloc-label-items">';
 			if (!empty($bin->items)) {
 				$html .= binloc_labels_render_items($bin->items, $layout);
@@ -212,7 +216,7 @@ if ($output === 'print' && $fk_entrepot > 0) {
 	print '<html><head>'."\n";
 	print '<meta charset="utf-8">'."\n";
 	print '<title>'.dol_escape_htmltag($langs->trans('BinLabels')).'</title>'."\n";
-	print '<link rel="stylesheet" href="'.$css_url.'?v=2.9.0">'."\n";
+	print '<link rel="stylesheet" href="'.$css_url.'?v=2.10.0">'."\n";
 	print '<style>body { margin: '.binloc_css_num($layout->sheet_margin_mm).'mm; font-family: sans-serif; } .binloc-legend { font-size: 0.85em; margin-bottom: 2mm; }</style>'."\n";
 	print binloc_label_layout_css($layout);
 	print '</head><body class="binloc-print-body">'."\n";
@@ -344,6 +348,7 @@ if ($fk_entrepot > 0) {
 			print '<input type="text" name="layout_code_sep" class="flat width50" value="'.dol_escape_htmltag($layout->code_sep).'" maxlength="3">';
 			print '</label>';
 			print '<label class="binloc-layout-field"><input type="checkbox" name="layout_show_description" value="1"'.($layout->show_description ? ' checked' : '').'> '.$langs->trans('LabelShowDescription').'</label>';
+			print '<label class="binloc-layout-field" title="'.dol_escape_htmltag($langs->trans('LabelShowContentsHint')).'"><input type="checkbox" name="layout_show_contents" value="1"'.($layout->show_contents ? ' checked' : '').'> '.$langs->trans('LabelShowContents').'</label>';
 			print '<label class="binloc-layout-field"><input type="checkbox" name="layout_show_batch" value="1"'.($layout->show_batch ? ' checked' : '').'> '.$langs->trans('LabelShowBatch').'</label>';
 			print '<label class="binloc-layout-field"><input type="checkbox" name="layout_show_product_label" value="1"'.($layout->show_product_label ? ' checked' : '').'> '.$langs->trans('LabelShowProductLabel').'</label>';
 			print '</div>';
