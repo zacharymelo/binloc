@@ -39,7 +39,7 @@ class InterfaceBinlocTrigger extends DolibarrTriggers
 		$this->name        = preg_replace('/^Interface/i', '', get_class($this));
 		$this->family      = 'stock';
 		$this->description = 'Binloc trigger — clears bin locations on stock movements and lot deletion';
-		$this->version     = '2.14.0';
+		$this->version     = '2.15.4';
 		$this->picto       = 'stock';
 	}
 

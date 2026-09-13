@@ -1,6 +1,6 @@
 # Binloc User Guide
 
-This guide covers everything a warehouse admin or operator does with Binloc day to day. It matches version **2.14.0**. Most fields in the module also carry a **?** hover tooltip with the same information in short form.
+This guide covers everything a warehouse admin or operator does with Binloc day to day. It matches version **2.15.4**. Most fields in the module also carry a **?** hover tooltip with the same information in short form.
 
 ## Contents
 
@@ -10,10 +10,11 @@ This guide covers everything a warehouse admin or operator does with Binloc day 
 4. [Finding things: explore by bin](#finding-things-explore-by-bin)
 5. [Printing bin labels](#printing-bin-labels)
 6. [Spreadsheet workflow: CSV import/export](#spreadsheet-workflow-csv-importexport)
-7. [Serialized / lot-tracked products](#serialized--lot-tracked-products)
-8. [Settings](#settings)
-9. [Permissions](#permissions)
-10. [Troubleshooting](#troubleshooting)
+7. [Pick and place sheets](#pick-and-place-sheets)
+8. [Serialized / lot-tracked products](#serialized--lot-tracked-products)
+9. [Settings](#settings)
+10. [Permissions](#permissions)
+11. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -163,6 +164,55 @@ P4;Serialized product;LOT001;R2;1;B;
 
 There's also an **Export assignments (CSV)** button directly on each warehouse's Bin Locations tab.
 
+## Pick and place sheets
+
+A sheet is a printable PDF listing where to pick goods from or put them away, one line per bin, with a tick box. There are two ways to make one:
+
+- **The shortcut:** on a sales order, **Create → Pick sheet**. On a shipment or reception, the **Pick sheet** / **Place sheet** button among the action buttons at the bottom of the card. One click generates the sheet and opens it in a new tab, ready to print.
+- **The Documents block** at the bottom left of the card: choose **Pick sheet** / **Place sheet** in the model list and click **Generate**. Use this to regenerate or to email the sheet.
+
+Either way the file is kept in the Documents block. The shortcut only appears when that sheet is switched on (below). After upgrading Binloc by replacing its files, open the Binloc **Settings** page once so the shortcuts are registered. Disabling and re-enabling the module keeps the sheet switches as they were.
+
+### Turning sheets on
+
+**Home → Setup → Modules → Bin Locations → Settings → Pick / place sheets.** Each launch point has its own switch, so turn on what matches how your team works:
+
+| Switch | Use it when |
+|---|---|
+| **Pick sheet on sales orders** | Pickers work from the order and the shipment is created afterwards from what they pulled. |
+| **Pick sheet on shipments** | The shipment is created first and names the warehouses and lots to pick. |
+| **Place sheet on receptions** | Received goods need putting away. |
+
+The switches are the same ones as the Status column of the PDF models on the native Orders, Shipments and Receptions setup pages, so either page can be used.
+
+**One section per warehouse**:
+- **Off:** everything is one list in walking order, grouped by bin code prefix. Use this for warehouses close together, such as sea cans in one yard.
+- **On:** each warehouse starts on its own page. Use this for sites across town.
+
+### What each sheet lists
+
+- **Sales order:** only the quantity not yet shipped (validated shipments count; drafts do not). An order that is already partly shipped lists only the remaining lines.
+  - Lot/serial products are taken from lots with stock, earliest eat-by date first. Other products are taken from warehouses with stock.
+  - If the order has a warehouse set, only that warehouse is used.
+  - Notes say how much stock is in each spot, how many other locations exist, and when stock is short.
+- **Shipment:** exactly the warehouses and lots on the shipment.
+- **Reception:** where each received line goes. Lines without a bin get an empty **Put in bin** box to write the bin in; assign it afterwards on the reception's **Bin Placement** tab.
+
+The **Bin** column only shows a bin in the line's own warehouse: the warehouse picked from, or the reception line's target warehouse. A bin belongs to one warehouse, so printing another warehouse's bin would send goods to a shelf the stock isn't booked into.
+
+Each line's bin status:
+- **Bin shown, no note:** the product (or that exact lot) is assigned there.
+- **Suggested:** there is no assignment for this exact lot, but the product has a bin in that warehouse. This is typical for a brand-new serial on a reception.
+- **No bin assigned:** nothing is recorded for the product in that warehouse. If the product has bins in other warehouses, the note adds **Has a bin in: …** with those warehouses. On a reception, that usually means either the target warehouse should be changed to one of those (before validating), or the product needs a bin in this warehouse (assign it on the **Bin Placement** tab).
+
+Lines are sorted in walking order: warehouse prefix, then each level in order, using the order of dropdown and letter values on the Warehouse Levels page. Lines without a bin come last.
+
+### Good to know
+
+- **Print shipment pick sheets before validating.** If stock is decremented when a shipment is validated, a serial's bin is cleared as it leaves (see below). A sheet generated after that shows a warning banner and falls back to suggested bins.
+- Sheets are saved as `REF-picksheet.pdf` / `REF-placesheet.pdf` next to the normal PDF. They never become the object's main document or the default email attachment. After generating one, the card's model list goes back to the site default.
+- Kits (sub-products), picking several orders on one sheet, and service lines are not included.
+
 ## Serialized / lot-tracked products
 
 - One serial/lot has **one** location anywhere — assigning it in a new warehouse moves it, never duplicates it.
@@ -174,6 +224,7 @@ There's also an **Export assignments (CSV)** button directly on each warehouse's
 **Home → Setup → Modules → Bin Locations → Settings**
 
 - **Auto-clear location when stock drops to zero** — when a (non-serialized) product's stock in a warehouse reaches zero, its bin assignment there is removed automatically. Lot assignments are not touched by this. Note that a product assigned before any stock arrived is only affected once stock has come *and gone*; a pre-assignment with no movements stays.
+- **Pick / place sheets** — see [Pick and place sheets](#pick-and-place-sheets).
 - **Debug Mode** — enables the read-only diagnostics endpoint at `/custom/binloc/ajax/debug.php` (admins only): table counts, migration status, integrity checks, level configs.
 
 The Settings page also shows the **database migration status banner** (see Troubleshooting).

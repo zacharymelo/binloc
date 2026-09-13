@@ -325,3 +325,38 @@ LabelWarehouseCodeUnset = not set
 LabelShowWarehouseHint = Bakes the warehouse's Bin code prefix into every code on the label, so a bin in sea can A reads AL21A4 and the same bin in sea can B reads BL21A4. The prefix is set on the warehouse card (Bin code prefix field, listed under Stock extrafields).
 LabelWarehouseCodeMissing = This warehouse has no %s yet, so codes print without one. Set it on the warehouse card.
 LabelWarehouseCodeDuplicate = Bin code prefix "%s" is also used by warehouse %s — codes will not be unique across warehouses. Give each warehouse its own prefix.
+
+#
+# Pick / place sheets (PDF document models)
+#
+PickSheet = Pick sheet
+PlaceSheet = Place sheet
+BinlocPickSheetOrderModelDesc = Binloc pick sheet: bins to pick the unshipped quantity from, in walk order. Saved as REF-picksheet.pdf; never replaces the order PDF.
+BinlocPickSheetShipmentModelDesc = Binloc pick sheet: bins of the exact warehouses and lots on this shipment, in walk order. Saved as REF-picksheet.pdf; never replaces the shipment PDF.
+BinlocPlaceSheetModelDesc = Binloc place sheet: where each received line goes, with a write-in box for lines without a bin. Saved as REF-placesheet.pdf; never replaces the reception PDF.
+SheetsSection = Pick / place sheets
+SheetsSectionDesc = Adds a Binloc sheet to the document generator of the chosen objects (Documents block on the card). Enable the launch point that matches how your team picks — or both.
+SheetForOrders = Pick sheet on sales orders
+SheetForOrdersDesc = Pick before a shipment exists: lists the bins holding stock for the unshipped quantity (earliest eat-by lots first, limited to the order's warehouse when set).
+SheetForShipments = Pick sheet on shipments
+SheetForShipmentsDesc = Pick after the shipment has chosen warehouses and lots: lists exactly those. Print it before validating if stock is decremented on validation.
+SheetForReceptions = Place sheet on receptions
+SheetForReceptionsDesc = Put-away list for received goods: assigned bin, suggested bin, or a write-in box.
+SheetNativeSetupLink = Module setup
+SheetSplitByWarehouse = One section per warehouse
+SheetSplitByWarehouseDesc = On: each warehouse starts on its own page (sites far apart). Off: one list in walking order across warehouses, grouped by bin code prefix.
+SheetColBin = Bin
+SheetColWriteIn = Put in bin
+SheetColNotes = Notes
+SheetSuggestedBin = Suggested (product's bin here)
+SheetNoBinAssigned = No bin assigned
+SheetBinElsewhere = Has a bin in: %s
+SheetNoStock = No stock available
+SheetShortStock = Not enough stock for the rest
+SheetStockHere = %s in stock here
+SheetOtherLocations = %s other location(s)
+SheetNoWarehouse = No warehouse
+SheetNothingToList = Nothing to pick or place.
+SheetButtonHint = Generates the sheet and opens it. It is also kept in the Documents block below, where it can be regenerated or emailed.
+SheetGenerateFailed = Could not generate the sheet: %s
+SheetStockAlreadyMoved =Stock for this shipment has already left the warehouse. Lot/serial bin assignments may have been cleared; bins shown as suggested come from the product's other assignments.

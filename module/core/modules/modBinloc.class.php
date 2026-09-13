@@ -34,17 +34,23 @@ class modBinloc extends DolibarrModules
 		$this->description   = 'Track product locations within warehouses using configurable bin/shelf/row levels';
 		$this->descriptionlong = 'Each warehouse defines its own location hierarchy (e.g. Row/Bay/Shelf/Bin or Case/Drawer/Bin). Products can have different location coordinates in each warehouse they occupy. Includes bulk assignment, per-warehouse and per-product views.';
 		$this->editor_name   = 'Zachary Melo';
-		$this->version       = '2.14.0';
+		$this->version       = '2.15.4';
 		$this->const_name    = 'MAIN_MODULE_BINLOC';
 		$this->picto         = 'stock';
 
 		$this->module_parts = array(
 			'triggers' => 1,
+			// Pick / place sheet document models in core/modules/{commande,expedition,reception}/doc/
+			'models' => 1,
 			'hooks' => array(
 				'data' => array(
 					'warehousecard',
 					'productlotcard',
 					'ordersupplierdispatch',
+					// Pick / place sheet shortcut buttons
+					'ordercard',
+					'expeditioncard',
+					'receptioncard',
 				),
 			),
 		);
@@ -66,6 +72,7 @@ class modBinloc extends DolibarrModules
 		$this->const = array(
 			array('BINLOC_CLEAR_ON_ZERO_STOCK', 'chaine', '0', 'Auto-clear location when product stock in warehouse drops to zero', 0, 'current', 1),
 			array('BINLOC_DEBUG_MODE', 'chaine', '0', 'Enable the Binloc diagnostics page', 0, 'current', 1),
+			array('BINLOC_SHEET_SPLIT_BY_WAREHOUSE', 'chaine', '0', 'Pick/place sheets: one section per warehouse on its own page', 0, 'current', 0),
 		);
 
 		// Tabs on other object cards
@@ -178,7 +185,24 @@ class modBinloc extends DolibarrModules
 
 		$this->delete_menus();
 
-		return $this->_init(array(), $options);
+		$result = $this->_init(array(), $options);
+
+		// Put back the pick / place sheets that were switched on when the
+		// module was last disabled (remove() unregisters them)
+		if ($result > 0) {
+			global $langs;
+			require_once DOL_DOCUMENT_ROOT.'/core/lib/admin.lib.php';
+			dol_include_once('/binloc/lib/binloc_sheets.lib.php');
+			$langs->load('binloc@binloc');
+			$models = binloc_sheet_models();
+			foreach (explode(',', getDolGlobalString('BINLOC_SHEETS_ACTIVE')) as $type) {
+				if (isset($models[$type]) && !binloc_sheet_model_enabled($this->db, $type)) {
+					addDocumentModel($models[$type]['name'], $type, $langs->trans($models[$type]['label']));
+				}
+			}
+		}
+
+		return $result;
 	}
 
 	/**
@@ -189,6 +213,23 @@ class modBinloc extends DolibarrModules
 	 */
 	public function remove($options = '')
 	{
+		global $conf;
+
+		// Unregister the sheet models so object cards don't offer a model
+		// whose file can no longer be loaded, remembering which were on so
+		// init() restores them (BINLOC_SHEETS_ACTIVE is not in $this->const,
+		// so disabling keeps it)
+		require_once DOL_DOCUMENT_ROOT.'/core/lib/admin.lib.php';
+		dol_include_once('/binloc/lib/binloc_sheets.lib.php');
+		$active = array();
+		foreach (binloc_sheet_models() as $type => $model) {
+			if (binloc_sheet_model_enabled($this->db, $type)) {
+				$active[] = $type;
+			}
+			delDocumentModel($model['name'], $type);
+		}
+		dolibarr_set_const($this->db, 'BINLOC_SHEETS_ACTIVE', implode(',', $active), 'chaine', 0, '', $conf->entity);
+
 		$sql = array();
 		return $this->_remove($sql, $options);
 	}

@@ -10,7 +10,8 @@
 /**
  * Class ActionsBinloc
  *
- * Hook contexts: warehousecard, productlotcard, ordersupplierdispatch.
+ * Hook contexts: warehousecard, productlotcard, ordersupplierdispatch, and
+ * ordercard / expeditioncard / receptioncard (pick / place sheet button).
  * The lot card panel is a proper formObjectOptions field row with AJAX inline
  * editing — no DOM surgery on core markup. All mutations go through the
  * Binloc AJAX endpoints.
@@ -306,6 +307,76 @@ jQuery(function ($) {
 			print '<span class="opacitymedium">&mdash;</span>';
 		}
 		print '</td>';
+
+		return 0;
+	}
+
+	// =========================================================================
+	// ordercard / expeditioncard / receptioncard — pick / place sheet button
+	// =========================================================================
+
+	/**
+	 * Hook: addMoreActionsButtons — one-click Pick sheet / Place sheet button
+	 *
+	 * Shown only when that sheet model is switched on for the object type and
+	 * the user can read the object (the same right the Documents block needs
+	 * to generate). The Documents block keeps working as before.
+	 *
+	 * @param  array   $parameters Hook parameters
+	 * @param  object  $object     Order, shipment or reception
+	 * @param  string  $action     Current action
+	 * @return int                 0 = continue with core buttons
+	 */
+	public function addMoreActionsButtons($parameters, &$object, &$action)
+	{
+		global $langs, $user;
+
+		$contexts = isset($parameters['currentcontext']) ? explode(':', $parameters['currentcontext']) : array();
+		$cards = array(
+			'ordercard'      => array('type' => 'order', 'right' => 'commande', 'label' => 'PickSheet'),
+			'expeditioncard' => array('type' => 'shipping', 'right' => 'expedition', 'label' => 'PickSheet'),
+			'receptioncard'  => array('type' => 'reception', 'right' => 'reception', 'label' => 'PlaceSheet'),
+		);
+		$card = null;
+		foreach ($cards as $context => $def) {
+			if (in_array($context, $contexts)) {
+				$card = $def;
+				break;
+			}
+		}
+		if ($card === null || empty($object->id) || !$user->hasRight($card['right'], 'lire')) {
+			return 0;
+		}
+
+		dol_include_once('/binloc/lib/binloc_sheets.lib.php');
+		if (!binloc_sheet_model_enabled($this->db, $card['type'])) {
+			return 0;
+		}
+
+		$langs->load('binloc@binloc');
+		$url = dol_buildpath('/binloc/sheet.php', 1).'?type='.urlencode($card['type']).'&id='.((int) $object->id).'&token='.newToken();
+		print dolGetButtonAction($langs->trans('SheetButtonHint'), $langs->trans($card['label']), 'default', $url, 'binloc-sheet-btn', 1, array('attr' => array('target' => '_blank')));
+
+		// Order card: core builds its "Create" dropdown after this hook with no
+		// way for modules to add entries, so move the button into it once the
+		// page is rendered. Without a dropdown (single entry, or
+		// MAIN_REMOVE_DROPDOWN_CREATE_BUTTONS_ON_ORDER) the button stays as is.
+		if ($card['type'] === 'order') {
+			print '<script>
+jQuery(function ($) {
+	var $btn = $("#binloc-sheet-btn");
+	var createLabel = "'.dol_escape_js($langs->trans('Create')).'";
+	var $menu = $btn.closest(".tabsAction").find(".dropdown-holder").filter(function () {
+		return $.trim($(this).children(".dropdown-toggle").text()) === createLabel;
+	}).first().children(".dropdown-content");
+	if ($btn.length && $menu.length) {
+		// Match core entries: the order card builds them as plain butAction links
+		// (styled by .dropdown-content .butAction), not .dropdown-item
+		$btn.removeClass("classfortooltip").removeAttr("title aria-label").appendTo($menu);
+	}
+});
+</script>';
+		}
 
 		return 0;
 	}

@@ -30,6 +30,15 @@ The Warehouse Levels editor is a single form with one universal **Save**: level 
 
 Layouts (size, padding, fonts, border, separator, what to show) are per warehouse with an optional override per level, and each layout chooses its **Output**: *Sheet* prints the labels edge to edge with zero gap for single-slice cutting, *Label printer* prints one label per page sized exactly to the stock, verified on a Dymo LabelWriter 450.
 
+### Pick and place sheets
+
+**Create → Pick sheet** on sales orders, and a **Pick sheet** / **Place sheet** button on shipment and reception cards (also available in each card's **Documents** block), generates a printable PDF listing which bins to pick from or put away to, sorted in walking order, with a tick box per line. Bin codes match the labels exactly.
+- **Sales order** pick sheet: for teams that pick before a shipment exists. Covers the unshipped quantity, earliest eat-by lots first.
+- **Shipment** pick sheet: the exact warehouses and lots on the shipment.
+- **Reception** place sheet: the assigned bin, a *suggested* bin, or a write-in box.
+
+Each launch point has its own switch in binloc setup, so every organisation turns on the one that matches how it works. A second switch keeps all warehouses in one walking list or starts each warehouse on its own page. Sheets are saved beside the commercial PDF and never replace it.
+
 ### Spreadsheet workflow
 
 **CSV import/export** (Import/Export admin tab): design the bin layout in Google Sheets and import it, and bulk-load or round-trip product→bin assignments per warehouse. Imports preview every planned change before writing and apply all-or-nothing. A `letter` level's whole range is written as a single end code (`Z`, or `AC` to go past Z), so a 700-value level is one cell.

@@ -1,5 +1,48 @@
 # Changelog
 
+## [2.15.4] - 2026-09-13
+
+### Fixed
+- **Place sheets were empty on Dolibarr 22** ("Nothing to pick or place"). The reception query sorted on a line-order column that only exists from Dolibarr 23, so the query failed and returned no lines. Lines now sort in the order they were added.
+
+### Added
+- **"Has a bin in: …" on sheet lines without a bin** in their warehouse. When the product has bins in other warehouses, those warehouses are named, so "No bin assigned" isn't read as "this product has no bin anywhere".
+
+## [2.15.3] - 2026-09-13
+
+### Fixed
+- **Place sheet button no longer returns HTTP 500.** Loading a reception needs the supplier-order dispatch classes, which Dolibarr's reception class does not include on its own (the reception card does). The one-click sheet page now loads them. Generating from the Documents block was not affected.
+
+## [2.15.2] - 2026-09-13
+
+### Fixed
+- **Pick sheet in the Create dropdown now looks like the other entries** (bold, uppercase, no caret). It used the generic dropdown-item style instead of the action-button style the order card uses for its Create entries.
+
+## [2.15.1] - 2026-09-13
+
+### Changed
+- **Pick sheet moved into the Create dropdown on sales orders.** It is a plain button when the dropdown is disabled (`MAIN_REMOVE_DROPDOWN_CREATE_BUTTONS_ON_ORDER`) or Create has a single entry. Shipment and reception cards keep the button, since they have no Create dropdown.
+
+### Fixed
+- **Disabling and re-enabling Binloc no longer switches the pick / place sheets off.** The module remembers which sheets were on (`BINLOC_SHEETS_ACTIVE`) and restores them when it is enabled again.
+- **The sheet buttons appear after a file-only upgrade** without a disable/re-enable: opening binloc setup registers any card hooks the module needs but Dolibarr has not recorded yet.
+
+## [2.15.0] - 2026-09-13
+
+### Added
+- **Pick and place sheets** — PDF document models in the Documents block of object cards:
+  - **Pick sheet on sales orders** (`binlocpick`): bins to take the not-yet-shipped quantity from. Lots are allocated earliest eat-by first and limited to the order's warehouse when set; shortfalls and extra locations are noted.
+  - **Pick sheet on shipments** (`binlocpickship`): the exact warehouses and lots the shipment names. When stock has already left (validated with stock decrement on shipment), a banner warns that lot bins may have been cleared, and the product's other bins in that warehouse are shown as *suggested*.
+  - **Place sheet on receptions** (`binlocplace`): assigned bin, *suggested* bin (for example a new serial whose product already has a bin in that warehouse), or a write-in box.
+  - Rows follow walk order: warehouse prefix, then each level by value position. Bin codes match the labels exactly.
+- **Pick sheet / Place sheet buttons** on order, shipment and reception cards when that sheet is switched on. One click generates the sheet through the same document model and opens it in a new tab; the file is also kept in the Documents block, which still works as before. One click generates the sheet through the same document model and opens it in a new tab; the file is also kept in the Documents block, which still works as before.
+- **Setup → Pick / place sheets**: a switch per launch point (orders, shipments, receptions), so each organisation enables the one that matches how it picks, or several. The switch is Dolibarr's own document-model activation, so it stays in sync with the native Orders/Shipments/Receptions setup pages. **One section per warehouse** switch: off = one list in walking order across nearby warehouses; on = each warehouse on its own page.
+
+### Notes
+- Sheets are saved as `REF-picksheet.pdf` / `REF-placesheet.pdf` and never become the object's main document. After generating, the card's selected model goes back to the site default, so validating an order still regenerates the order PDF.
+- **Upgrading from 2.14 by replacing files:** disable and re-enable Binloc once, so Dolibarr registers the new card hooks the buttons need (then switch the sheets on in binloc setup).
+- Disabling the module unregisters the sheet models. Re-enable them from binloc setup after re-enabling the module.
+
 ## [2.14.0] - 2026-09-13
 
 ### Added

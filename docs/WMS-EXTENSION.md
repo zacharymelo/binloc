@@ -61,6 +61,16 @@ table via `binloc_render_bulk_table()`; a `disabled_hint`/prefill on those
 rows is the natural insertion point, and a Dolibarr hook context should be
 added there when the module lands rather than pre-emptively.
 
+**Pick / place sheets are a read-out, not direction.** Core's sheet models
+(`lib/binloc_sheets.lib.php`, rendered by
+`core/modules/binloc/binloc_sheet_pdf.class.php`) only print recorded
+locations: an order sheet allocates from stock earliest-eat-by first and names
+the bins already assigned; "suggested" means the product already has a bin in
+that warehouse. Choosing a bin for stock that has none (putaway) or an optimal
+pick path belongs here. The row providers return plain rows
+(`binloc_sheet_row()`), so a WMS module can prefill `code`/`status` before
+`binloc_sheet_finalize()` rather than forking the renderer.
+
 **Occupancy / empty-bin queries** ("find an empty bin under AL25"): registry
 minus in-use, or enumeration minus in-use for option-backed hierarchies.
 
