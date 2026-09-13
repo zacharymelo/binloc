@@ -196,11 +196,11 @@
 	display: flex;
 	flex-wrap: wrap;
 	align-items: flex-end;
-	gap: 6px 12px;
-	padding: 10px 12px;
-	margin-bottom: 10px;
+	gap: 12px 20px;
+	padding: 14px 18px 16px;
+	margin-bottom: 16px;
 	border: 1px solid var(--bordercolor, rgba(0, 0, 0, 0.15));
-	border-radius: 4px;
+	border-radius: 6px;
 	background: var(--colorbacklineimpair2, transparent);
 }
 
@@ -211,15 +211,26 @@
 .binloc-toolbar-sep {
 	align-self: stretch;
 	width: 1px;
-	margin: 0 4px;
+	margin: 0 6px;
 	background: var(--bordercolor, rgba(0, 0, 0, 0.15));
 }
 
 .binloc-field {
 	display: inline-flex;
 	flex-direction: column;
-	gap: 2px;
+	gap: 5px;
 	min-width: 0;
+}
+
+/* Primary action: the theme's own action-button colours (the variables
+   behind .butAction), because <button class="button"> only gets the grey
+   native look in eldy — the themed style is reserved for <a> and <input> */
+.binloc-btn-primary,
+.binloc-btn-primary:hover {
+	background: var(--butactionbg, #444) !important;
+	color: var(--textbutaction, #fff) !important;
+	border-color: transparent !important;
+	text-transform: uppercase;
 }
 
 .binloc-field-caption {
@@ -263,12 +274,18 @@
 	align-items: center;
 }
 
+/* Count and Print button side by side — not flung to opposite edges of a
+   wide viewport */
 .binloc-results-bar {
 	display: flex;
 	align-items: center;
-	justify-content: space-between;
-	gap: 12px;
-	margin: 14px 0 8px;
+	justify-content: flex-start;
+	gap: 16px;
+	margin: 20px 0 12px;
+}
+
+.binloc-results-bar .button {
+	margin: 0;
 }
 
 .binloc-results-count {
@@ -278,11 +295,55 @@
 
 /* ---- Layout settings panel ---- */
 
+/* The card's padding moves onto the summary and the form so the clickable
+   header spans the full card width */
+.binloc-label-settings {
+	padding: 0;
+	margin-bottom: 16px;
+}
+
 .binloc-label-settings summary {
 	cursor: pointer;
 	display: flex;
 	align-items: center;
-	gap: 8px;
+	gap: 10px;
+	padding: 12px 18px;
+	list-style: none;
+	border-radius: 4px;
+}
+
+.binloc-label-settings summary::-webkit-details-marker {
+	display: none;
+}
+
+/* display:flex on a summary removes the native disclosure triangle; draw
+   our own so the panel still reads as collapsible */
+.binloc-label-settings summary::before {
+	content: "\25B8";
+	width: 1em;
+	opacity: 0.6;
+	flex-shrink: 0;
+}
+
+.binloc-label-settings[open] > summary::before {
+	content: "\25BE";
+}
+
+.binloc-label-settings summary:focus {
+	outline: none;
+}
+
+.binloc-label-settings summary:focus-visible {
+	outline: 2px solid var(--colortextlinkaction, currentColor);
+	outline-offset: -2px;
+}
+
+.binloc-label-settings summary:hover {
+	background: rgba(0, 0, 0, 0.03);
+}
+
+.binloc-label-settings form {
+	padding: 4px 18px 18px;
 }
 
 .binloc-summary-title {
@@ -306,20 +367,25 @@
 .binloc-settings-grid {
 	display: flex;
 	flex-wrap: wrap;
-	gap: 8px 22px;
-	margin-top: 10px;
+	align-items: stretch;
+	gap: 14px 18px;
+	margin-top: 6px;
 }
 
-.binloc-fs {
-	border: 0;
+/* Eldy forces the fieldset border (!important) and a 2em inline padding;
+   keep a border but make it the same tint as the cards, and give the
+   contents room to breathe */
+.binloc-settings-grid .binloc-fs {
+	border: 1px solid var(--bordercolor, rgba(0, 0, 0, 0.15)) !important;
+	border-radius: 4px;
 	margin: 0;
-	padding: 0;
+	padding: 6px 16px 14px;
 	min-width: 0;
 }
 
-.binloc-fs legend {
-	padding: 0;
-	margin-bottom: 4px;
+.binloc-settings-grid .binloc-fs legend {
+	padding: 0 6px;
+	margin-left: -6px;
 	font-size: 0.8em;
 	font-weight: bold;
 	opacity: 0.8;
@@ -327,27 +393,39 @@
 
 .binloc-fs-row {
 	display: flex;
-	gap: 8px;
+	gap: 14px;
 	align-items: flex-end;
+	margin-top: 4px;
 }
 
 .binloc-fs-checks .binloc-checks {
 	display: grid;
 	grid-template-columns: auto auto;
-	gap: 0 14px;
+	gap: 6px 20px;
+	margin-top: 6px;
 }
 
 .binloc-hint {
-	margin: 10px 0 0;
+	margin: 14px 0 0;
 	max-width: 70em;
 	font-size: 0.85em;
+	line-height: 1.5;
 	opacity: 0.65;
 }
 
+/* Full-width footer rule (an inline-flex here would only underline its
+   own content) */
 .binloc-settings-footer {
-	margin-top: 10px;
-	padding-top: 10px;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin-top: 14px;
+	padding-top: 14px;
 	border-top: 1px solid var(--bordercolor, rgba(0, 0, 0, 0.12));
+}
+
+.binloc-settings-footer .button {
+	margin: 0;
 }
 
 /* ---- Key legend as chips ---- */
@@ -356,8 +434,8 @@
 	display: flex;
 	flex-wrap: wrap;
 	align-items: center;
-	gap: 6px 14px;
-	margin-bottom: 8px;
+	gap: 8px 18px;
+	margin-bottom: 14px;
 	font-size: 0.85em;
 }
 
@@ -381,8 +459,8 @@
 .binloc-chip {
 	display: inline-flex;
 	align-items: baseline;
-	gap: 5px;
-	padding: 1px 7px 1px 5px;
+	gap: 6px;
+	padding: 2px 9px 2px 7px;
 	border: 1px solid var(--bordercolor, rgba(0, 0, 0, 0.2));
 	border-radius: 3px;
 	white-space: nowrap;

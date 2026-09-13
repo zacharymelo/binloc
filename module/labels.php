@@ -216,7 +216,7 @@ if ($output === 'print' && $fk_entrepot > 0) {
 	print '<html><head>'."\n";
 	print '<meta charset="utf-8">'."\n";
 	print '<title>'.dol_escape_htmltag($langs->trans('BinLabels')).'</title>'."\n";
-	print '<link rel="stylesheet" href="'.$css_url.'?v=2.11.0">'."\n";
+	print '<link rel="stylesheet" href="'.$css_url.'?v=2.11.1">'."\n";
 	print '<style>body { margin: '.binloc_css_num($layout->sheet_margin_mm).'mm; font-family: sans-serif; } .binloc-legend { font-size: 0.85em; margin-bottom: 2mm; }</style>'."\n";
 	print binloc_label_layout_css($layout);
 	print '</head><body class="binloc-print-body">'."\n";
@@ -308,7 +308,7 @@ if ($fk_entrepot > 0 && !empty($wh_levels)) {
 	print '</label>';
 
 	print '<span class="binloc-field binloc-field-actions"><span class="binloc-field-caption">&nbsp;</span><span class="binloc-actions">';
-	print '<button type="submit" class="button smallpaddingimp">'.dol_escape_htmltag($langs->trans('Refresh')).'</button>';
+	print '<button type="submit" class="button binloc-btn-primary smallpaddingimp">'.dol_escape_htmltag($langs->trans('Refresh')).'</button>';
 	if (!empty($search) || !empty($level_filters) || $include_empty) {
 		print '<a href="'.$_SERVER['PHP_SELF'].'?fk_entrepot='.$fk_entrepot.'&label_level='.$label_level.'" class="button button-cancel smallpaddingimp">'.$langs->trans('Reset').'</a>';
 	}
@@ -394,7 +394,7 @@ if ($fk_entrepot > 0) {
 			print '<p class="binloc-hint">'.$langs->trans('LabelLayoutDesc').'</p>';
 
 			print '<div class="binloc-actions binloc-settings-footer">';
-			print '<button type="submit" name="layout_scope" value="level" class="button smallpaddingimp">'.dol_escape_htmltag($langs->trans('LabelLayoutSaveForLevel', $level_label)).'</button>';
+			print '<button type="submit" name="layout_scope" value="level" class="button binloc-btn-primary smallpaddingimp">'.dol_escape_htmltag($langs->trans('LabelLayoutSaveForLevel', $level_label)).'</button>';
 			print '<button type="submit" name="layout_scope" value="warehouse" class="button button-cancel smallpaddingimp">'.dol_escape_htmltag($langs->trans('LabelLayoutSaveAsDefault')).'</button>';
 			if ($layout->is_level_specific) {
 				print '<button type="submit" name="layout_scope" value="reset" class="button button-cancel smallpaddingimp">'.dol_escape_htmltag($langs->trans('LabelLayoutReset')).'</button>';
@@ -420,10 +420,10 @@ if ($fk_entrepot > 0) {
 			$print_url .= '&output=print';
 
 			print '<div class="binloc-results-bar">';
-			print '<span class="binloc-results-count">'.$langs->trans('LabelsCountFor', count($bins), dol_escape_htmltag($level_label)).'</span>';
 			print '<a href="'.$print_url.'" target="_blank" class="button">';
 			print img_picto('', 'printer', 'class="pictofixedwidth"').$langs->trans('PrintLabels');
 			print '</a>';
+			print '<span class="binloc-results-count">'.$langs->trans('LabelsCountFor', count($bins), dol_escape_htmltag($level_label)).'</span>';
 			print '</div>';
 
 			print binloc_render_level_legend($wh_levels);

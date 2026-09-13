@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.11.1] - 2026-09-12
+
+### Fixed
+- **Bin Labels page spacing and texture** after the 2.11.0 restructure: the layout sections had no inner padding (the theme forces a fieldset border, and the reset had removed the padding instead of the border), the collapsible header had lost its disclosure marker and showed a raw focus outline, the footer rule only underlined its own buttons, and the Print button sat at the far edge of the viewport away from its count. Sections, toolbar, legend and footer now have consistent padding and rhythm; the header has a marker and a proper focus style; primary actions (Refresh, Save for level) use the theme's own action-button colours; Print sits beside its count.
+
 ## [2.11.0] - 2026-09-12
 
 ### Changed
