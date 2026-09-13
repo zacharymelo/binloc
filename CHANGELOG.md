@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.14.0] - 2026-09-13
+
+### Added
+- **Warehouse bin code prefix.** A new **Bin code prefix** field on the warehouse card (a Dolibarr extrafield on warehouses, `binloc_code`, also listed under Stock extrafields) is baked into every bin code on labels: with prefix `A`, bin `L21A4` prints as `AL21A4`, and the same bin in sea can `B` prints as `BL21A4` — identical layouts in different warehouses never share a code. Per-layout toggle "Warehouse prefix" (on by default; no effect until a prefix is set). The labels page warns when the prefix is unset or shared by another warehouse. The field is created on module enable and by migration step 2.14.0-1 (run from the setup banner after a file-only upgrade).
+
 ## [2.13.1] - 2026-09-13
 
 ### Changed

@@ -34,7 +34,7 @@ class modBinloc extends DolibarrModules
 		$this->description   = 'Track product locations within warehouses using configurable bin/shelf/row levels';
 		$this->descriptionlong = 'Each warehouse defines its own location hierarchy (e.g. Row/Bay/Shelf/Bin or Case/Drawer/Bin). Products can have different location coordinates in each warehouse they occupy. Includes bulk assignment, per-warehouse and per-product views.';
 		$this->editor_name   = 'Zachary Melo';
-		$this->version       = '2.13.1';
+		$this->version       = '2.14.0';
 		$this->const_name    = 'MAIN_MODULE_BINLOC';
 		$this->picto         = 'stock';
 
@@ -170,6 +170,11 @@ class modBinloc extends DolibarrModules
 		dol_include_once('/binloc/class/binlocmigration.class.php');
 		$migration = new BinlocMigration($this->db);
 		$migration->run();
+
+		// Warehouse "Bin code prefix" extrafield (fresh installs skip the
+		// migration steps, so it is ensured here as well)
+		dol_include_once('/binloc/lib/binloc.lib.php');
+		binloc_ensure_warehouse_code_extrafield($this->db);
 
 		$this->delete_menus();
 

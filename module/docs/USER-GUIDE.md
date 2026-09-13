@@ -1,6 +1,6 @@
 # Binloc User Guide
 
-This guide covers everything a warehouse admin or operator does with Binloc day to day. It matches version **2.13.1**. Most fields in the module also carry a **?** hover tooltip with the same information in short form.
+This guide covers everything a warehouse admin or operator does with Binloc day to day. It matches version **2.14.0**. Most fields in the module also carry a **?** hover tooltip with the same information in short form.
 
 ## Contents
 
@@ -81,7 +81,8 @@ From the admin side, every "used by N location(s)" link on the Warehouse Levels 
 
 ### What a label shows
 
-- **Title** — the bin's full code (`AL253B`), identical to the code the system uses. Pickers match the label against their pick list, so the two must never differ.
+- **Title** — the bin's full code (`AL253B`), identical to the code the system uses. Pickers match the label against their pick list, so the two must never differ. When the warehouse has a **Bin code prefix** (see below), it is baked in front: `A` + `L253B` = `AL253B`.
+- **Warehouse prefix** — set on the warehouse card (**Stock → warehouse → Bin code prefix**, a field the module adds; it is also listed under Stock extrafields). One or two letters, unique per warehouse. This is what keeps identical layouts apart: two sea cans that both have a left rack, row 2, bin A4 print `AL2A4` and `BL2A4`, never the same code twice. The labels page warns if a warehouse has no prefix or shares one.
 - **Corner tag** — the label's own level value (`B` on a shelf label, `3` on a bag label), top right, in its own font size. It is what you look for from a distance; the title is what you confirm up close. Rule of thumb from signage practice: character height in cm ≈ reading distance in cm ÷ 200, so a shelf number read from 2 m wants ~1 cm ≈ 28 pt.
 - **Description** — the own value's description (`Blue Rack`) under the title.
 - **Contents** — everything assigned below the bin, grouped by the next level down (`Bag 3`, with each bag's products), with any deeper sub-path shown compactly on each item (`B3 · PART-1`). Product names and lot numbers are optional.
@@ -110,6 +111,7 @@ Open **Label layout — ‹level›** above the preview (admin right). Layouts a
 | Border (mm) | 0 = none (pre-cut sticker stock). |
 | Margin (mm) | Blank margin around the grid on a sheet; ignored for label-printer output. |
 | Separator | Text between code parts: blank gives `R5B`, `-` gives `R5-B`. |
+| Warehouse prefix | Bakes the warehouse's Bin code prefix into every code on the label (on by default; does nothing until the prefix is set on the warehouse card). |
 | Show contents | Untick for identity-only labels — title, corner tag, description, nothing listed. Meant for the upper levels: a rack-end label names the rack; its shelves carry their own labels. |
 | Show value description / product names / lot-serial | What appears on the label. |
 

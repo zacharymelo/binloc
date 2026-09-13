@@ -77,6 +77,7 @@ if ($action === 'savelayout' && $fk_entrepot > 0) {
 	}
 	$layout->code_sep           = GETPOST('layout_code_sep', 'alphanohtml');
 	$layout->print_mode         = GETPOST('layout_print_mode', 'aZ09');
+	$layout->show_warehouse     = GETPOST('layout_show_warehouse', 'aZ09') ? 1 : 0;
 	$layout->show_description   = GETPOST('layout_show_description', 'aZ09') ? 1 : 0;
 	$layout->show_contents      = GETPOST('layout_show_contents', 'aZ09') ? 1 : 0;
 	$layout->show_batch         = GETPOST('layout_show_batch', 'aZ09') ? 1 : 0;
@@ -95,6 +96,11 @@ if ($action === 'savelayout' && $fk_entrepot > 0) {
 }
 
 $layout = ($fk_entrepot > 0) ? binloc_get_label_layout($db, $fk_entrepot, $label_level) : binloc_label_layout_defaults();
+
+// Warehouse bin-code prefix: baked into every code so identical layouts in
+// different warehouses never share one (sea can A's AL21A4 vs B's BL21A4)
+$wh_code = ($fk_entrepot > 0) ? binloc_get_warehouse_code($db, $fk_entrepot) : '';
+$code_prefix = (!empty($layout->show_warehouse) && $wh_code !== '') ? $wh_code.(string) $layout->code_sep : '';
 
 // Per-level bin filters, same convention as the warehouse tab:
 // option-backed levels by option rowid (exact), text/number by partial value
@@ -146,11 +152,12 @@ function binloc_labels_render_items($items, $layout)
 /**
  * Render the label cards (shared by preview and print output)
  *
- * @param  array    $bins   Bins from binloc_bins_from_rows
- * @param  stdClass $layout Label layout
- * @return string           HTML
+ * @param  array    $bins        Bins from binloc_bins_from_rows
+ * @param  stdClass $layout      Label layout
+ * @param  string   $code_prefix Warehouse prefix (with separator) put before every code
+ * @return string                HTML
  */
-function binloc_labels_render_cards($bins, $layout)
+function binloc_labels_render_cards($bins, $layout, $code_prefix = '')
 {
 	$html = '<div class="binloc-label-sheet">';
 	foreach ($bins as $bin) {
@@ -164,7 +171,7 @@ function binloc_labels_render_cards($bins, $layout)
 		if ($layout->corner_pt > 0 && $bin->own_value !== '') {
 			$html .= '<div class="binloc-label-corner">'.dol_escape_htmltag($bin->own_value).'</div>';
 		}
-		$html .= '<div class="binloc-label-code">'.dol_escape_htmltag($bin->code).'</div>';
+		$html .= '<div class="binloc-label-code">'.dol_escape_htmltag($code_prefix.$bin->code).'</div>';
 		if (!empty($layout->show_description) && $bin->own_description !== '') {
 			$html .= '<div class="binloc-label-descline">'.dol_escape_htmltag($bin->own_description).'</div>';
 		}
@@ -220,7 +227,7 @@ if ($output === 'print' && $fk_entrepot > 0) {
 	print '<html><head>'."\n";
 	print '<meta charset="utf-8">'."\n";
 	print '<title>'.dol_escape_htmltag($langs->trans('BinLabels')).'</title>'."\n";
-	print '<link rel="stylesheet" href="'.$css_url.'?v=2.13.1">'."\n";
+	print '<link rel="stylesheet" href="'.$css_url.'?v=2.14.0">'."\n";
 	print binloc_label_layout_css($layout);
 	print binloc_label_print_css($layout);
 	print '</head><body class="binloc-print-body binloc-print-'.dol_escape_htmltag($layout->print_mode).'">'."\n";
@@ -230,7 +237,7 @@ if ($output === 'print' && $fk_entrepot > 0) {
 		// Labels only — no Key on the printout: on a sheet it would offset
 		// the first row (zero-gap cutting), on a label printer it would burn
 		// a label. The Key stays on the screen preview.
-		print binloc_labels_render_cards($bins, $layout);
+		print binloc_labels_render_cards($bins, $layout, $code_prefix);
 	}
 	print '<script>window.addEventListener("load", function () { window.print(); });</script>'."\n";
 	print '</body></html>';
@@ -411,6 +418,7 @@ if ($fk_entrepot > 0) {
 			print '</div></fieldset>';
 
 			print '<fieldset class="binloc-fs binloc-fs-checks"><legend>'.$langs->trans('LabelSecShow').'</legend><div class="binloc-checks">';
+			print $check('show_warehouse', $langs->trans('LabelShowWarehouse', ($wh_code !== '' ? $wh_code : $langs->trans('LabelWarehouseCodeUnset'))), $langs->trans('LabelShowWarehouseHint'));
 			print $check('show_contents', $langs->trans('LabelShowContents'), $langs->trans('LabelShowContentsHint'));
 			print $check('show_description', $langs->trans('LabelShowDescription'), $langs->trans('LabelShowDescriptionHint'));
 			print $check('show_product_label', $langs->trans('LabelShowProductLabel'), $langs->trans('LabelShowProductLabelHint'));
@@ -435,6 +443,19 @@ if ($fk_entrepot > 0) {
 		}
 
 		print binloc_label_layout_css($layout);
+
+		// Warehouse prefix problems are worth a warning before anything prints
+		if (!empty($layout->show_warehouse)) {
+			$wh_card = dol_buildpath('/product/stock/card.php', 1).'?id='.$fk_entrepot;
+			if ($wh_code === '') {
+				print '<div class="warning">'.$langs->trans('LabelWarehouseCodeMissing', '<a href="'.$wh_card.'">'.$langs->trans('BinCodePrefix').'</a>').'</div>';
+			} else {
+				$dups = binloc_warehouse_code_duplicates($db, $wh_code, $fk_entrepot);
+				if (!empty($dups)) {
+					print '<div class="warning">'.$langs->trans('LabelWarehouseCodeDuplicate', dol_escape_htmltag($wh_code), dol_escape_htmltag(implode(', ', $dups))).'</div>';
+				}
+			}
+		}
 
 		foreach ($notices as $notice) {
 			print '<div class="warning">'.dol_escape_htmltag($notice).'</div>';
@@ -465,7 +486,7 @@ if ($fk_entrepot > 0) {
 			}
 
 			print binloc_render_level_legend($wh_levels);
-			print binloc_labels_render_cards($bins, $layout);
+			print binloc_labels_render_cards($bins, $layout, $code_prefix);
 		}
 	}
 }

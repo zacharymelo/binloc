@@ -314,3 +314,14 @@ BulkSaveAllHint = Saves every row that has a value. Blank inputs never erase sto
 SetSelectedToHint = Fills the ticked rows with the values you enter here (only the fields you fill). Nothing is written until Save All.
 ConfirmSaveLayoutAsDefault = Save these settings as the warehouse default? Every level in this warehouse without a layout of its own will use them from now on.
 ConfirmResetLayout = Remove the %s layout and fall back to the warehouse default? The settings stored for %s will be lost.
+
+#
+# Warehouse bin code prefix (entrepot extrafield binloc_code)
+#
+BinCodePrefix = Bin code prefix
+BinCodePrefixHelp = One or two letters put in front of every bin code of this warehouse on labels (A + L21A4 = AL21A4), so identical layouts in different warehouses never share a code. Keep it unique across warehouses.
+LabelShowWarehouse = Warehouse prefix (%s)
+LabelWarehouseCodeUnset = not set
+LabelShowWarehouseHint = Bakes the warehouse's Bin code prefix into every code on the label, so a bin in sea can A reads AL21A4 and the same bin in sea can B reads BL21A4. The prefix is set on the warehouse card (Bin code prefix field, listed under Stock extrafields).
+LabelWarehouseCodeMissing = This warehouse has no %s yet, so codes print without one. Set it on the warehouse card.
+LabelWarehouseCodeDuplicate = Bin code prefix "%s" is also used by warehouse %s — codes will not be unique across warehouses. Give each warehouse its own prefix.

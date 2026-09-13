@@ -24,7 +24,7 @@ require_once DOL_DOCUMENT_ROOT.'/core/lib/admin.lib.php';
  */
 class BinlocMigration
 {
-	const TARGET_DB_VERSION = '2.4.0-1';
+	const TARGET_DB_VERSION = '2.14.0-1';
 
 	/** @var DoliDB */
 	public $db;
@@ -63,6 +63,7 @@ class BinlocMigration
 			'2.0.0-8' => 'stepVerify',
 			'2.0.0-9' => 'stepDropLegacyColumns',
 			'2.4.0-1' => 'stepOptionDescriptions',
+			'2.14.0-1' => 'stepWarehouseCodeExtrafield',
 		);
 	}
 
@@ -780,6 +781,22 @@ class BinlocMigration
 	protected function stepOptionDescriptions()
 	{
 		if (!$this->addColumnIfMissing('binloc_level_options', 'description', 'VARCHAR(255) DEFAULT NULL AFTER value')) {
+			return -1;
+		}
+		return 1;
+	}
+
+	/**
+	 * 2.14.0-1: Warehouse "Bin code prefix" extrafield (entrepot.binloc_code),
+	 * baked into every bin code on labels
+	 *
+	 * @return int
+	 */
+	protected function stepWarehouseCodeExtrafield()
+	{
+		dol_include_once('/binloc/lib/binloc.lib.php');
+		if (binloc_ensure_warehouse_code_extrafield($this->db) < 0) {
+			$this->error = 'could not create the warehouse extrafield binloc_code';
 			return -1;
 		}
 		return 1;

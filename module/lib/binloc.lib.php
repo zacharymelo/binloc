@@ -64,7 +64,7 @@ function binloc_print_assets()
 	}
 	$printed = true;
 
-	$v = '2.13.1';
+	$v = '2.14.0';
 	print '<link rel="stylesheet" href="'.dol_buildpath('/binloc/css/binloc.css', 1).'?v='.$v.'">'."\n";
 	print '<script src="'.dol_buildpath('/binloc/js/binloc.js', 1).'?v='.$v.'"></script>'."\n";
 	print '<script>Binloc.init({ajaxBase: "'.dol_escape_js(dol_buildpath('/binloc/ajax/', 1)).'", token: "'.newToken().'"});</script>'."\n";
@@ -281,6 +281,91 @@ function binloc_compact_code($level_cfgs, $values)
 }
 
 /**
+ * Make sure the warehouse "Bin code prefix" extrafield exists (entrepot
+ * extrafield binloc_code). It is created on module enable and by the
+ * 2.14.0-1 migration step, so file-only upgrades get it from the setup
+ * banner. Idempotent.
+ *
+ * The prefix is a warehouse attribute (edited on the warehouse card, listed
+ * under Stock extrafields) that is baked into every bin code of that
+ * warehouse on labels, so identical layouts in different warehouses — two
+ * sea cans each with a left and right rack — never share a code.
+ *
+ * @param  DoliDB $db Database handler
+ * @return int        1 if present or created, -1 on failure
+ */
+function binloc_ensure_warehouse_code_extrafield($db)
+{
+	require_once DOL_DOCUMENT_ROOT.'/core/class/extrafields.class.php';
+
+	$ef = new ExtraFields($db);
+	$ef->fetch_name_optionals_label('entrepot', true);
+	if (!empty($ef->attributes['entrepot']['type']['binloc_code'])) {
+		return 1;
+	}
+	$result = $ef->addExtraField('binloc_code', 'BinCodePrefix', 'varchar', 100, 8, 'entrepot', 0, 0, '', '', 1, '', 1, 'BinCodePrefixHelp', '', '', 'binloc@binloc', '1');
+	return ($result > 0) ? 1 : -1;
+}
+
+/**
+ * The warehouse's bin code prefix ('' when unset or the extrafield is missing)
+ *
+ * @param  DoliDB $db          Database handler
+ * @param  int    $fk_entrepot Warehouse ID
+ * @return string
+ */
+function binloc_get_warehouse_code($db, $fk_entrepot)
+{
+	require_once DOL_DOCUMENT_ROOT.'/core/class/extrafields.class.php';
+
+	$ef = new ExtraFields($db);
+	$ef->fetch_name_optionals_label('entrepot');
+	if (empty($ef->attributes['entrepot']['type']['binloc_code'])) {
+		return '';
+	}
+
+	$sql = "SELECT binloc_code FROM ".MAIN_DB_PREFIX."entrepot_extrafields WHERE fk_object = ".(int) $fk_entrepot;
+	$resql = $db->query($sql);
+	if (!$resql) {
+		return '';
+	}
+	$obj = $db->fetch_object($resql);
+	$db->free($resql);
+	return $obj ? trim((string) $obj->binloc_code) : '';
+}
+
+/**
+ * Other warehouses using the same bin code prefix (a prefix must be unique
+ * for codes to be unique — this is what the labels page warns about)
+ *
+ * @param  DoliDB $db          Database handler
+ * @param  string $code        Prefix
+ * @param  int    $fk_entrepot Warehouse to exclude
+ * @return string[]            Refs of the other warehouses
+ */
+function binloc_warehouse_code_duplicates($db, $code, $fk_entrepot)
+{
+	$refs = array();
+	if ($code === '') {
+		return $refs;
+	}
+	$sql = "SELECT e.ref FROM ".MAIN_DB_PREFIX."entrepot_extrafields as x";
+	$sql .= " INNER JOIN ".MAIN_DB_PREFIX."entrepot as e ON e.rowid = x.fk_object";
+	$sql .= " WHERE x.binloc_code = '".$db->escape($code)."'";
+	$sql .= " AND x.fk_object != ".(int) $fk_entrepot;
+	$sql .= " AND e.entity IN (".getEntity('stock').")";
+	$resql = $db->query($sql);
+	if (!$resql) {
+		return $refs;
+	}
+	while ($obj = $db->fetch_object($resql)) {
+		$refs[] = $obj->ref;
+	}
+	$db->free($resql);
+	return $refs;
+}
+
+/**
  * Default label layout (all dimensions in mm, fonts in pt).
  * pad_top_mm doubles as the blank header strip at the top of each label
  * (e.g. for slide-in bin holders) — no hardcoded rectangle anywhere.
@@ -306,6 +391,7 @@ function binloc_label_layout_defaults()
 	$layout->sheet_margin_mm = 0.0; // print-sheet margin around the whole grid
 	$layout->code_sep        = ''; // '' = values joined (AL253B3); e.g. '-' for A-L-2...
 	$layout->print_mode      = 'sheet'; // 'sheet' = grid, cut apart | 'roll' = label printer, one label per page
+	$layout->show_warehouse  = 1; // prefix the warehouse's bin-code prefix (entrepot extrafield binloc_code) to every code
 	$layout->show_description = 1; // own level value's description under the title
 	$layout->show_contents   = 1; // 0 = identity only (title, corner, description) — e.g. rack-end labels
 	$layout->show_batch      = 1; // lot/serial batch on label items
@@ -333,6 +419,7 @@ function binloc_label_layout_clamp($layout)
 	$layout->sheet_margin_mm = max(0.0, min(50.0, (float) $layout->sheet_margin_mm));
 	$layout->code_sep        = dol_substr((string) $layout->code_sep, 0, 3);
 	$layout->print_mode      = in_array($layout->print_mode, array('sheet', 'roll'), true) ? $layout->print_mode : 'sheet';
+	$layout->show_warehouse  = empty($layout->show_warehouse) ? 0 : 1;
 	$layout->show_description = empty($layout->show_description) ? 0 : 1;
 	$layout->show_contents   = empty($layout->show_contents) ? 0 : 1;
 	$layout->show_batch      = empty($layout->show_batch) ? 0 : 1;
@@ -358,16 +445,17 @@ function binloc_label_layout_const_name($fk_entrepot, $fk_level = 0)
  *
  * @param  stdClass    $layout Layout to modify in place
  * @param  string|null $raw    Stored JSON ('' or null = nothing stored)
+ * @param  string[]    $skip   Keys to leave untouched (warehouse-scoped fields on a per-level overlay)
  * @return bool                True when something was overlaid
  */
-function binloc_label_layout_overlay($layout, $raw)
+function binloc_label_layout_overlay($layout, $raw, $skip = array())
 {
 	$stored = $raw ? json_decode($raw) : null;
 	if (!is_object($stored)) {
 		return false;
 	}
 	foreach (get_object_vars(binloc_label_layout_defaults()) as $key => $default) {
-		if (!isset($stored->$key)) {
+		if (!isset($stored->$key) || in_array($key, $skip, true)) {
 			continue;
 		}
 		if (is_string($default)) {
