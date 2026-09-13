@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.12.0] - 2026-09-12
+
+### Added
+- **Label-printer output** — a per-layout Output setting: *Sheet* (the existing edge-to-edge grid for cutting apart) or *Label printer* (one label per page, each page exactly the layout's Width × Height with zero margin — what a Dymo LabelWriter 450 or similar roll printer expects). Because it lives in the layout, bag tags can go to the roll printer while shelf labels stay on sheets. The page shows the page size and print-dialog guidance in roll mode, and warns when no height is set.
+
+### Fixed
+- **The Key legend no longer prints.** It shifted the first row on sheets (breaking single-slice cutting) and would burn a label on a roll printer. It stays on the screen preview.
+- The print sheet had an 8 mm-ish top offset from the preview grid's margin; removed.
+
 ## [2.11.1] - 2026-09-12
 
 ### Fixed

@@ -74,6 +74,7 @@ if ($action === 'savelayout' && $fk_entrepot > 0) {
 		}
 	}
 	$layout->code_sep           = GETPOST('layout_code_sep', 'alphanohtml');
+	$layout->print_mode         = GETPOST('layout_print_mode', 'aZ09');
 	$layout->show_description   = GETPOST('layout_show_description', 'aZ09') ? 1 : 0;
 	$layout->show_contents      = GETPOST('layout_show_contents', 'aZ09') ? 1 : 0;
 	$layout->show_batch         = GETPOST('layout_show_batch', 'aZ09') ? 1 : 0;
@@ -216,14 +217,16 @@ if ($output === 'print' && $fk_entrepot > 0) {
 	print '<html><head>'."\n";
 	print '<meta charset="utf-8">'."\n";
 	print '<title>'.dol_escape_htmltag($langs->trans('BinLabels')).'</title>'."\n";
-	print '<link rel="stylesheet" href="'.$css_url.'?v=2.11.1">'."\n";
-	print '<style>body { margin: '.binloc_css_num($layout->sheet_margin_mm).'mm; font-family: sans-serif; } .binloc-legend { font-size: 0.85em; margin-bottom: 2mm; }</style>'."\n";
+	print '<link rel="stylesheet" href="'.$css_url.'?v=2.12.0">'."\n";
 	print binloc_label_layout_css($layout);
-	print '</head><body class="binloc-print-body">'."\n";
+	print binloc_label_print_css($layout);
+	print '</head><body class="binloc-print-body binloc-print-'.dol_escape_htmltag($layout->print_mode).'">'."\n";
 	if (empty($bins)) {
 		print '<p>'.$langs->trans('NoBinsMatch').'</p>';
 	} else {
-		print binloc_render_level_legend($wh_levels);
+		// Labels only — no Key on the printout: on a sheet it would offset
+		// the first row (zero-gap cutting), on a label printer it would burn
+		// a label. The Key stays on the screen preview.
 		print binloc_labels_render_cards($bins, $layout);
 	}
 	print '<script>window.addEventListener("load", function () { window.print(); });</script>'."\n";
@@ -377,6 +380,11 @@ if ($fk_entrepot > 0) {
 			print '</div></fieldset>';
 
 			print '<fieldset class="binloc-fs"><legend>'.$langs->trans('LabelSecSheet').'</legend><div class="binloc-fs-row">';
+			$mode_sel = '<select name="layout_print_mode" class="flat">';
+			$mode_sel .= '<option value="sheet"'.($layout->print_mode === 'sheet' ? ' selected' : '').'>'.$langs->trans('LabelPrintModeSheet').'</option>';
+			$mode_sel .= '<option value="roll"'.($layout->print_mode === 'roll' ? ' selected' : '').'>'.$langs->trans('LabelPrintModeRoll').'</option>';
+			$mode_sel .= '</select>';
+			print binloc_field($langs->trans('LabelPrintMode'), $mode_sel, '', $langs->trans('LabelPrintModeHint'));
 			print $num('border_mm', $langs->trans('LabelBorder'), $langs->trans('LabelBorderHint'));
 			print $num('sheet_margin_mm', $langs->trans('LabelSheetMargin'));
 			print binloc_field($langs->trans('LabelCodeSep'), '<input type="text" name="layout_code_sep" class="flat binloc-num" value="'.dol_escape_htmltag($layout->code_sep).'" maxlength="3">', '', $langs->trans('LabelCodeSepHint'));
@@ -425,6 +433,14 @@ if ($fk_entrepot > 0) {
 			print '</a>';
 			print '<span class="binloc-results-count">'.$langs->trans('LabelsCountFor', count($bins), dol_escape_htmltag($level_label)).'</span>';
 			print '</div>';
+
+			if ($layout->print_mode === 'roll') {
+				if ($layout->height_mm > 0) {
+					print '<p class="binloc-hint">'.$langs->trans('LabelRollHint', binloc_css_num($layout->width_mm), binloc_css_num($layout->height_mm)).'</p>';
+				} else {
+					print '<div class="warning">'.$langs->trans('LabelRollNeedsHeight').'</div>';
+				}
+			}
 
 			print binloc_render_level_legend($wh_levels);
 			print binloc_labels_render_cards($bins, $layout);

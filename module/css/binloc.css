@@ -182,6 +182,10 @@
 	border-color: #000;
 }
 
+.binloc-print-body .binloc-label-sheet {
+	margin: 0;
+}
+
 /* ---- Page structure: intro, toolbar, captioned fields, results bar ---- */
 
 .binloc-intro {

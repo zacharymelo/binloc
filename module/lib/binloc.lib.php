@@ -64,7 +64,7 @@ function binloc_print_assets()
 	}
 	$printed = true;
 
-	$v = '2.11.1';
+	$v = '2.12.0';
 	print '<link rel="stylesheet" href="'.dol_buildpath('/binloc/css/binloc.css', 1).'?v='.$v.'">'."\n";
 	print '<script src="'.dol_buildpath('/binloc/js/binloc.js', 1).'?v='.$v.'"></script>'."\n";
 	print '<script>Binloc.init({ajaxBase: "'.dol_escape_js(dol_buildpath('/binloc/ajax/', 1)).'", token: "'.newToken().'"});</script>'."\n";
@@ -305,6 +305,7 @@ function binloc_label_layout_defaults()
 	$layout->border_mm       = 0.3; // 0 = no border (pre-cut sticker stock)
 	$layout->sheet_margin_mm = 0.0; // print-sheet margin around the whole grid
 	$layout->code_sep        = ''; // '' = values joined (AL253B3); e.g. '-' for A-L-2...
+	$layout->print_mode      = 'sheet'; // 'sheet' = grid, cut apart | 'roll' = label printer, one label per page
 	$layout->show_description = 1; // own level value's description under the title
 	$layout->show_contents   = 1; // 0 = identity only (title, corner, description) — e.g. rack-end labels
 	$layout->show_batch      = 1; // lot/serial batch on label items
@@ -331,6 +332,7 @@ function binloc_label_layout_clamp($layout)
 	$layout->border_mm       = max(0.0, min(2.0, (float) $layout->border_mm));
 	$layout->sheet_margin_mm = max(0.0, min(50.0, (float) $layout->sheet_margin_mm));
 	$layout->code_sep        = dol_substr((string) $layout->code_sep, 0, 3);
+	$layout->print_mode      = in_array($layout->print_mode, array('sheet', 'roll'), true) ? $layout->print_mode : 'sheet';
 	$layout->show_description = empty($layout->show_description) ? 0 : 1;
 	$layout->show_contents   = empty($layout->show_contents) ? 0 : 1;
 	$layout->show_batch      = empty($layout->show_batch) ? 0 : 1;
@@ -492,6 +494,40 @@ function binloc_label_layout_css($layout)
 	// body text (signage rule of thumb: character height = distance / 200)
 	$css .= '.binloc-label-corner { font-size: '.binloc_css_num($layout->corner_pt).'pt; }';
 	return '<style>'."\n".$css."\n".'</style>'."\n";
+}
+
+/**
+ * Page-level CSS for the standalone print document, by output mode.
+ *
+ * sheet: the grid flows on the paper the user picks; sheet_margin_mm is the
+ *        margin around it.
+ * roll:  a label printer (Dymo LabelWriter and the like) advances one
+ *        die-cut label per page, so every label becomes its own page of
+ *        exactly the label's size with no margin. The @page size lets the
+ *        browser pick the matching label stock; with no height set the
+ *        driver's paper size governs and the label flows from the top.
+ *
+ * @param  stdClass $layout Layout object
+ * @return string           <style> block
+ */
+function binloc_label_print_css($layout)
+{
+	$css = 'html, body { padding: 0; font-family: sans-serif; }'."\n";
+	if ($layout->print_mode === 'roll') {
+		$size = '';
+		if ($layout->height_mm > 0) {
+			$size = ' size: '.binloc_css_num($layout->width_mm).'mm '.binloc_css_num($layout->height_mm).'mm;';
+		}
+		$css .= '@page { margin: 0;'.$size.' }'."\n";
+		$css .= 'body { margin: 0; }'."\n";
+		$css .= '.binloc-label-sheet { display: block; margin: 0; }'."\n";
+		$css .= '.binloc-label { break-after: page; page-break-after: always; }'."\n";
+		$css .= '.binloc-label:last-child { break-after: auto; page-break-after: auto; }'."\n";
+	} else {
+		$css .= 'body { margin: '.binloc_css_num($layout->sheet_margin_mm).'mm; }'."\n";
+		$css .= '.binloc-label-sheet { margin: 0; }'."\n";
+	}
+	return '<style>'."\n".$css.'</style>'."\n";
 }
 
 /**

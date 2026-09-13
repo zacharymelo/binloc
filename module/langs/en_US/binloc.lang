@@ -133,7 +133,13 @@ BinlocAny = Any
 LabelSecLabel = Label (mm)
 LabelSecPadding = Padding (mm)
 LabelSecType = Type (pt)
-LabelSecSheet = Sheet
+LabelSecSheet = Output
+LabelPrintMode = Output
+LabelPrintModeSheet = Sheet (grid, cut apart)
+LabelPrintModeRoll = Label printer (one per page)
+LabelPrintModeHint = Sheet: labels flow edge to edge on the paper you pick, for cutting apart. Label printer: each label prints as its own page of exactly Width × Height, no margin — what a Dymo LabelWriter or similar roll printer expects. Set Width and Height to the label stock (e.g. Dymo 30252 address 89 × 28, 30256 shipping 102 × 59, 30334 multipurpose 57 × 32 mm) and usually Border 0. The Key legend is never printed.
+LabelRollHint = Label printer mode: each label prints as its own %s × %s mm page. In the print dialog choose the matching label size (the browser will usually preselect it) and print at full scale, not fit-to-page.
+LabelRollNeedsHeight = Label printer mode needs a label height so each page matches the label stock — set Height in the layout (0 = auto only works for sheets).
 LabelSecShow = Show
 LabelWidth = Width
 LabelHeight = Height
