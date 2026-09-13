@@ -64,7 +64,7 @@ function binloc_print_assets()
 	}
 	$printed = true;
 
-	$v = '2.10.0';
+	$v = '2.11.0';
 	print '<link rel="stylesheet" href="'.dol_buildpath('/binloc/css/binloc.css', 1).'?v='.$v.'">'."\n";
 	print '<script src="'.dol_buildpath('/binloc/js/binloc.js', 1).'?v='.$v.'"></script>'."\n";
 	print '<script>Binloc.init({ajaxBase: "'.dol_escape_js(dol_buildpath('/binloc/ajax/', 1)).'", token: "'.newToken().'"});</script>'."\n";
@@ -237,15 +237,15 @@ function binloc_render_level_legend($level_cfgs)
 		if (!binloc_datatype_has_options($cfg->datatype)) {
 			continue;
 		}
-		$pairs = array();
+		$chips = '';
 		foreach ($cfg->options as $opt) {
 			if (!$opt->active || empty($opt->description)) {
 				continue;
 			}
-			$pairs[] = '<strong>'.dol_escape_htmltag($opt->value).'</strong> = '.dol_escape_htmltag($opt->description);
+			$chips .= '<span class="binloc-chip"><b>'.dol_escape_htmltag($opt->value).'</b>'.dol_escape_htmltag($opt->description).'</span>';
 		}
-		if (!empty($pairs)) {
-			$groups[] = dol_escape_htmltag($cfg->label).': '.implode(', ', $pairs);
+		if ($chips !== '') {
+			$groups[] = '<span class="binloc-legend-group"><span class="binloc-legend-level">'.dol_escape_htmltag($cfg->label).'</span>'.$chips.'</span>';
 		}
 	}
 
@@ -253,9 +253,10 @@ function binloc_render_level_legend($level_cfgs)
 		return '';
 	}
 
-	$html = '<div class="opacitymedium small binloc-legend">';
-	$html .= '<span class="binloc-legend-title">'.$langs->trans('BinValueLegend').'</span> &mdash; ';
-	$html .= implode(' &middot; ', $groups);
+	// Chips (code + meaning) grouped per level, instead of one run-on sentence
+	$html = '<div class="binloc-legend">';
+	$html .= '<span class="binloc-legend-title">'.$langs->trans('BinValueLegend').'</span>';
+	$html .= implode('', $groups);
 	$html .= '</div>';
 	return $html;
 }

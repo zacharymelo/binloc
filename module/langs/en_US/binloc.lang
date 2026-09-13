@@ -128,7 +128,24 @@ NoProductsInWarehouseYet = No products with stock or a bin assignment in this wa
 # Bin labels
 #
 BinLabels = Bin Labels
-BinLabelsDesc = Printable labels for one level of the warehouse (a tag per shelf, per bag…). Each label shows its full location code, its own level value in the corner, and what is assigned below it. Narrow by location with the level filters, or by product with the search; tick "include empty bins" to also tag configured bins that hold nothing yet.
+BinLabelsDesc = One printable label per bin at the chosen level — its full location code, its own value in the corner, and what is assigned below it.
+BinlocAny = Any
+LabelSecLabel = Label (mm)
+LabelSecPadding = Padding (mm)
+LabelSecType = Type (pt)
+LabelSecSheet = Sheet
+LabelSecShow = Show
+LabelWidth = Width
+LabelHeight = Height
+LabelHeightHint = 0 = automatic height
+LabelPadTopHint = Extra top padding leaves a blank strip at the top of every label, e.g. 21 mm for slide-in bin holders
+LabelFontBody = Body
+LabelFontCorner = Corner tag
+LabelCornerHint = 0 = hide. Rule of thumb: character height in cm ≈ reading distance in cm ÷ 200 (2 m → ~1 cm ≈ 28 pt)
+LabelBorder = Border (mm)
+LabelBorderHint = 0 = none, for pre-cut sticker stock
+LabelSheetMargin = Margin (mm)
+LabelCodeSepHint = Blank joins values (R5B); "-" gives R5-B
 PrintLabels = Print labels
 NoBinsMatch = No bins match the current selection
 LabelsCountFor = %s label(s) — one per %s
@@ -146,18 +163,8 @@ LabelLayoutSaveForLevel = Save for %s
 LabelLayoutSaveAsDefault = Save as warehouse default
 LabelLayoutReset = Use warehouse default
 LabelLayoutResetDone = Level layout removed — the warehouse default applies again
-LabelLayoutDesc = Sizing for printed labels, per warehouse with an optional override per level (a bag tag and a shelf tag differ in stock and reading distance). Top padding leaves a blank strip at the top of every label (e.g. 21 mm for slide-in bin holders). Labels print edge to edge with no gap, so a sheet can be cut with a single slice between labels. Height 0 sizes each row automatically. Rule of thumb for the corner tag: character height in cm ≈ reading distance in cm ÷ 200 (2 m → ~1 cm ≈ 28 pt).
-LabelWidthMm = Width (mm)
-LabelHeightMm = Height (mm, 0 = auto)
-LabelPadTopMm = Padding top (mm)
-LabelPadRightMm = Padding right (mm)
-LabelPadBottomMm = Padding bottom (mm)
-LabelPadLeftMm = Padding left (mm)
-LabelFontPt = Font size (pt)
-LabelCornerPt = Corner tag size (pt, 0 = hide)
-LabelBorderMm = Border (mm, 0 = none)
-LabelSheetMarginMm = Sheet margin (mm)
-LabelCodeSep = Code separator
+LabelLayoutDesc = Per warehouse, with an optional override per level — a bag tag and a shelf tag differ in stock and reading distance. Labels print edge to edge with no gap, so a sheet is cut with a single slice between labels. Hover a field for details.
+LabelCodeSep = Separator
 LabelShowDescription = Show value description
 LabelShowContents = Show contents
 LabelShowContentsHint = Untick for identity-only labels (title, corner tag, description) — e.g. rack-end labels, where the shelves below carry their own labels. Set per level: off for Rack, on for Bag.

@@ -216,7 +216,7 @@ if ($output === 'print' && $fk_entrepot > 0) {
 	print '<html><head>'."\n";
 	print '<meta charset="utf-8">'."\n";
 	print '<title>'.dol_escape_htmltag($langs->trans('BinLabels')).'</title>'."\n";
-	print '<link rel="stylesheet" href="'.$css_url.'?v=2.10.0">'."\n";
+	print '<link rel="stylesheet" href="'.$css_url.'?v=2.11.0">'."\n";
 	print '<style>body { margin: '.binloc_css_num($layout->sheet_margin_mm).'mm; font-family: sans-serif; } .binloc-legend { font-size: 0.85em; margin-bottom: 2mm; }</style>'."\n";
 	print binloc_label_layout_css($layout);
 	print '</head><body class="binloc-print-body">'."\n";
@@ -239,15 +239,82 @@ binloc_print_assets();
 
 print dol_get_fiche_head(array(), '', $langs->trans('BinLabels'), -1, 'stock');
 
-print '<div class="opacitymedium marginbottomonly">'.$langs->trans('BinLabelsDesc').'</div>';
+print '<p class="binloc-intro">'.$langs->trans('BinLabelsDesc').'</p>';
 
-// Warehouse selector
-print '<div class="marginbottomonly">';
-print '<form method="GET" action="'.$_SERVER['PHP_SELF'].'" style="display:inline">';
-print '<strong>'.$langs->trans('Warehouse').'</strong>: ';
-print binloc_render_warehouse_select($db, 'fk_entrepot', $fk_entrepot, 'flat minwidth250', 'onchange="this.form.submit()"');
-print ' <input type="submit" class="button smallpaddingimp" value="'.$langs->trans('Select').'">';
+/**
+ * One captioned control in a toolbar or fieldset
+ *
+ * @param  string $caption Visible caption (already translated)
+ * @param  string $control HTML of the control
+ * @param  string $extra   Extra classes for the wrapper
+ * @param  string $title   Optional tooltip
+ * @return string
+ */
+function binloc_field($caption, $control, $extra = '', $title = '')
+{
+	$html = '<label class="binloc-field'.($extra !== '' ? ' '.$extra : '').'"'.($title !== '' ? ' title="'.dol_escape_htmltag($title).'"' : '').'>';
+	$html .= '<span class="binloc-field-caption">'.dol_escape_htmltag($caption).'</span>';
+	$html .= $control;
+	$html .= '</label>';
+	return $html;
+}
+
+// ---- Toolbar: warehouse | label level | filters | empty bins | refresh ----
+// Two GET forms; both are display:contents so their fields align on one grid
+print '<div class="binloc-toolbar">';
+
+print '<form method="GET" action="'.$_SERVER['PHP_SELF'].'">';
+print binloc_field($langs->trans('Warehouse'), binloc_render_warehouse_select($db, 'fk_entrepot', $fk_entrepot, 'flat minwidth200', 'onchange="this.form.submit()"'));
 print '</form>';
+
+if ($fk_entrepot > 0 && !empty($wh_levels)) {
+	$level_label = $wh_levels[$label_level]->label;
+
+	print '<form method="GET" action="'.$_SERVER['PHP_SELF'].'">';
+	print '<input type="hidden" name="fk_entrepot" value="'.$fk_entrepot.'">';
+
+	$sel = '<select name="label_level" class="flat" onchange="this.form.submit()">';
+	foreach ($wh_levels as $level_id => $cfg) {
+		$sel .= '<option value="'.$level_id.'"'.((int) $level_id === $label_level ? ' selected' : '').'>'.dol_escape_htmltag($cfg->label).'</option>';
+	}
+	$sel .= '</select>';
+	print binloc_field($langs->trans('LabelPrintFor'), $sel, 'binloc-field-primary');
+
+	print '<span class="binloc-toolbar-sep"></span>';
+
+	print binloc_field($langs->trans('Product'), '<input type="text" name="search_product" class="flat minwidth150" value="'.dol_escape_htmltag($search).'" placeholder="'.dol_escape_htmltag($langs->trans('SearchProduct')).'">');
+
+	foreach ($wh_levels as $level_id => $cfg) {
+		$raw = isset($level_filter_raw[$level_id]) ? $level_filter_raw[$level_id] : '';
+		if (binloc_datatype_has_options($cfg->datatype)) {
+			$ctl = '<select name="search_level'.$level_id.'" class="flat">';
+			$ctl .= '<option value="">'.dol_escape_htmltag($langs->trans('BinlocAny')).'</option>';
+			foreach ($cfg->options as $opt) {
+				$selected = ((string) $opt->id === (string) $raw) ? ' selected' : '';
+				$suffix = (!$opt->active ? ' ('.$langs->trans('LegacyValue').')' : '');
+				$title = (!empty($opt->description) ? ' title="'.dol_escape_htmltag($opt->description).'"' : '');
+				$ctl .= '<option value="'.(int) $opt->id.'"'.$selected.$title.'>'.dol_escape_htmltag($opt->value.$suffix).'</option>';
+			}
+			$ctl .= '</select>';
+		} else {
+			$ctl = '<input type="text" name="search_level'.$level_id.'" class="flat binloc-num" value="'.dol_escape_htmltag($raw).'" placeholder="'.dol_escape_htmltag($langs->trans('BinlocAny')).'">';
+		}
+		print binloc_field($cfg->label, $ctl);
+	}
+
+	print '<label class="binloc-field binloc-field-check" title="'.dol_escape_htmltag($langs->trans('LabelIncludeEmptyHint')).'">';
+	print '<span class="binloc-field-caption">&nbsp;</span>';
+	print '<span class="binloc-check"><input type="checkbox" name="include_empty" value="1"'.($include_empty ? ' checked' : '').'> '.$langs->trans('LabelIncludeEmpty').'</span>';
+	print '</label>';
+
+	print '<span class="binloc-field binloc-field-actions"><span class="binloc-field-caption">&nbsp;</span><span class="binloc-actions">';
+	print '<button type="submit" class="button smallpaddingimp">'.dol_escape_htmltag($langs->trans('Refresh')).'</button>';
+	if (!empty($search) || !empty($level_filters) || $include_empty) {
+		print '<a href="'.$_SERVER['PHP_SELF'].'?fk_entrepot='.$fk_entrepot.'&label_level='.$label_level.'" class="button button-cancel smallpaddingimp">'.$langs->trans('Reset').'</a>';
+	}
+	print '</span></span>';
+	print '</form>';
+}
 print '</div>';
 
 if ($fk_entrepot > 0) {
@@ -260,62 +327,21 @@ if ($fk_entrepot > 0) {
 		}
 		print '</div>';
 	} else {
-		$level_label = $wh_levels[$label_level]->label;
-
-		// Selection form: label level, by location (per-level filters), by product (search), empty bins
-		print '<form method="GET" action="'.$_SERVER['PHP_SELF'].'">';
-		print '<input type="hidden" name="fk_entrepot" value="'.$fk_entrepot.'">';
-		print '<div class="marginbottomonly binloc-filter-bar">';
-		print '<label><strong>'.$langs->trans('LabelPrintFor').'</strong> ';
-		print '<select name="label_level" class="flat" onchange="this.form.submit()">';
-		foreach ($wh_levels as $level_id => $cfg) {
-			print '<option value="'.$level_id.'"'.((int) $level_id === $label_level ? ' selected' : '').'>'.dol_escape_htmltag($cfg->label).'</option>';
-		}
-		print '</select></label>';
-		print '</div>';
-		print '<div class="marginbottomonly binloc-filter-bar">';
-		print '<input type="text" name="search_product" class="flat minwidth200" value="'.dol_escape_htmltag($search).'" placeholder="'.dol_escape_htmltag($langs->trans('SearchProduct')).'">';
-		foreach ($wh_levels as $level_id => $cfg) {
-			$raw = isset($level_filter_raw[$level_id]) ? $level_filter_raw[$level_id] : '';
-			if (binloc_datatype_has_options($cfg->datatype)) {
-				print ' <select name="search_level'.$level_id.'" class="flat" aria-label="'.dol_escape_htmltag($cfg->label).'">';
-				print '<option value="">'.dol_escape_htmltag($cfg->label).'…</option>';
-				foreach ($cfg->options as $opt) {
-					$sel = ((string) $opt->id === (string) $raw) ? ' selected' : '';
-					$suffix = (!$opt->active ? ' ('.$langs->trans('LegacyValue').')' : '');
-					$title = (!empty($opt->description) ? ' title="'.dol_escape_htmltag($opt->description).'"' : '');
-					print '<option value="'.(int) $opt->id.'"'.$sel.$title.'>'.dol_escape_htmltag($opt->value.$suffix).'</option>';
-				}
-				print '</select>';
-			} else {
-				print ' <input type="text" name="search_level'.$level_id.'" class="flat width75" value="'.dol_escape_htmltag($raw).'" placeholder="'.dol_escape_htmltag($cfg->label).'">';
-			}
-		}
-		print ' <label class="nowraponall" title="'.dol_escape_htmltag($langs->trans('LabelIncludeEmptyHint')).'"><input type="checkbox" name="include_empty" value="1"'.($include_empty ? ' checked' : '').'> '.$langs->trans('LabelIncludeEmpty').'</label>';
-		print ' <input type="submit" class="button smallpaddingimp" value="'.$langs->trans('Refresh').'">';
-		if (!empty($search) || !empty($level_filters) || $include_empty) {
-			print ' <a href="'.$_SERVER['PHP_SELF'].'?fk_entrepot='.$fk_entrepot.'&label_level='.$label_level.'" class="button smallpaddingimp">'.$langs->trans('Reset').'</a>';
-		}
-		print '</div>';
-		print '</form>';
-
 		// ---- Layout settings (admin): this level's override, or the warehouse default ----
 		if ($can_admin) {
-			$layout_fields = array(
-				'width_mm'      => 'LabelWidthMm',
-				'height_mm'     => 'LabelHeightMm',
-				'pad_top_mm'    => 'LabelPadTopMm',
-				'pad_right_mm'  => 'LabelPadRightMm',
-				'pad_bottom_mm' => 'LabelPadBottomMm',
-				'pad_left_mm'   => 'LabelPadLeftMm',
-				'font_pt'       => 'LabelFontPt',
-				'corner_pt'     => 'LabelCornerPt',
-			);
+			$num = function ($key, $caption, $title = '') use ($layout, $langs) {
+				return binloc_field($caption, '<input type="text" name="layout_'.$key.'" class="flat binloc-num" value="'.binloc_css_num($layout->$key).'">', '', $title);
+			};
+			$check = function ($key, $caption, $title = '') use ($layout) {
+				return '<label class="binloc-check"'.($title !== '' ? ' title="'.dol_escape_htmltag($title).'"' : '').'><input type="checkbox" name="layout_'.$key.'" value="1"'.(!empty($layout->$key) ? ' checked' : '').'> '.dol_escape_htmltag($caption).'</label>';
+			};
+
 			print '<details class="binloc-card binloc-label-settings">';
-			print '<summary><strong>'.$langs->trans('LabelLayoutFor', dol_escape_htmltag($level_label)).'</strong>';
-			print ' <span class="opacitymedium small">'.($layout->is_level_specific ? $langs->trans('LabelLayoutIsOverride') : $langs->trans('LabelLayoutIsDefault')).'</span>';
+			print '<summary>';
+			print '<span class="binloc-summary-title">'.$langs->trans('LabelLayoutFor', dol_escape_htmltag($level_label)).'</span>';
+			print ' <span class="binloc-badge'.($layout->is_level_specific ? ' binloc-badge-on' : '').'">'.($layout->is_level_specific ? $langs->trans('LabelLayoutIsOverride') : $langs->trans('LabelLayoutIsDefault')).'</span>';
 			print '</summary>';
-			print '<div class="opacitymedium small marginbottomonly">'.$langs->trans('LabelLayoutDesc').'</div>';
+
 			print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'">';
 			print '<input type="hidden" name="token" value="'.newToken().'">';
 			print '<input type="hidden" name="action" value="savelayout">';
@@ -330,33 +356,48 @@ if ($fk_entrepot > 0) {
 			if ($include_empty) {
 				print '<input type="hidden" name="include_empty" value="1">';
 			}
-			print '<div class="binloc-inline-form">';
-			foreach ($layout_fields as $key => $transkey) {
-				print '<label class="binloc-layout-field">'.$langs->trans($transkey).'<br>';
-				print '<input type="text" name="layout_'.$key.'" class="flat width50 right" value="'.binloc_css_num($layout->$key).'">';
-				print '</label>';
-			}
+
+			print '<div class="binloc-settings-grid">';
+
+			print '<fieldset class="binloc-fs"><legend>'.$langs->trans('LabelSecLabel').'</legend><div class="binloc-fs-row">';
+			print $num('width_mm', $langs->trans('LabelWidth'));
+			print $num('height_mm', $langs->trans('LabelHeight'), $langs->trans('LabelHeightHint'));
+			print '</div></fieldset>';
+
+			print '<fieldset class="binloc-fs"><legend>'.$langs->trans('LabelSecPadding').'</legend><div class="binloc-fs-row">';
+			print $num('pad_top_mm', $langs->trans('Top'), $langs->trans('LabelPadTopHint'));
+			print $num('pad_right_mm', $langs->trans('Right'));
+			print $num('pad_bottom_mm', $langs->trans('Bottom'));
+			print $num('pad_left_mm', $langs->trans('Left'));
+			print '</div></fieldset>';
+
+			print '<fieldset class="binloc-fs"><legend>'.$langs->trans('LabelSecType').'</legend><div class="binloc-fs-row">';
+			print $num('font_pt', $langs->trans('LabelFontBody'));
+			print $num('corner_pt', $langs->trans('LabelFontCorner'), $langs->trans('LabelCornerHint'));
+			print '</div></fieldset>';
+
+			print '<fieldset class="binloc-fs"><legend>'.$langs->trans('LabelSecSheet').'</legend><div class="binloc-fs-row">';
+			print $num('border_mm', $langs->trans('LabelBorder'), $langs->trans('LabelBorderHint'));
+			print $num('sheet_margin_mm', $langs->trans('LabelSheetMargin'));
+			print binloc_field($langs->trans('LabelCodeSep'), '<input type="text" name="layout_code_sep" class="flat binloc-num" value="'.dol_escape_htmltag($layout->code_sep).'" maxlength="3">', '', $langs->trans('LabelCodeSepHint'));
+			print '</div></fieldset>';
+
+			print '<fieldset class="binloc-fs binloc-fs-checks"><legend>'.$langs->trans('LabelSecShow').'</legend><div class="binloc-checks">';
+			print $check('show_contents', $langs->trans('LabelShowContents'), $langs->trans('LabelShowContentsHint'));
+			print $check('show_description', $langs->trans('LabelShowDescription'));
+			print $check('show_product_label', $langs->trans('LabelShowProductLabel'));
+			print $check('show_batch', $langs->trans('LabelShowBatch'));
+			print '</div></fieldset>';
+
 			print '</div>';
-			print '<div class="binloc-inline-form margintoponly">';
-			print '<label class="binloc-layout-field">'.$langs->trans('LabelBorderMm').'<br>';
-			print '<input type="text" name="layout_border_mm" class="flat width50 right" value="'.binloc_css_num($layout->border_mm).'">';
-			print '</label>';
-			print '<label class="binloc-layout-field">'.$langs->trans('LabelSheetMarginMm').'<br>';
-			print '<input type="text" name="layout_sheet_margin_mm" class="flat width50 right" value="'.binloc_css_num($layout->sheet_margin_mm).'">';
-			print '</label>';
-			print '<label class="binloc-layout-field">'.$langs->trans('LabelCodeSep').'<br>';
-			print '<input type="text" name="layout_code_sep" class="flat width50" value="'.dol_escape_htmltag($layout->code_sep).'" maxlength="3">';
-			print '</label>';
-			print '<label class="binloc-layout-field"><input type="checkbox" name="layout_show_description" value="1"'.($layout->show_description ? ' checked' : '').'> '.$langs->trans('LabelShowDescription').'</label>';
-			print '<label class="binloc-layout-field" title="'.dol_escape_htmltag($langs->trans('LabelShowContentsHint')).'"><input type="checkbox" name="layout_show_contents" value="1"'.($layout->show_contents ? ' checked' : '').'> '.$langs->trans('LabelShowContents').'</label>';
-			print '<label class="binloc-layout-field"><input type="checkbox" name="layout_show_batch" value="1"'.($layout->show_batch ? ' checked' : '').'> '.$langs->trans('LabelShowBatch').'</label>';
-			print '<label class="binloc-layout-field"><input type="checkbox" name="layout_show_product_label" value="1"'.($layout->show_product_label ? ' checked' : '').'> '.$langs->trans('LabelShowProductLabel').'</label>';
-			print '</div>';
-			print '<div class="binloc-inline-form margintoponly">';
+
+			print '<p class="binloc-hint">'.$langs->trans('LabelLayoutDesc').'</p>';
+
+			print '<div class="binloc-actions binloc-settings-footer">';
 			print '<button type="submit" name="layout_scope" value="level" class="button smallpaddingimp">'.dol_escape_htmltag($langs->trans('LabelLayoutSaveForLevel', $level_label)).'</button>';
-			print '<button type="submit" name="layout_scope" value="warehouse" class="button smallpaddingimp">'.dol_escape_htmltag($langs->trans('LabelLayoutSaveAsDefault')).'</button>';
+			print '<button type="submit" name="layout_scope" value="warehouse" class="button button-cancel smallpaddingimp">'.dol_escape_htmltag($langs->trans('LabelLayoutSaveAsDefault')).'</button>';
 			if ($layout->is_level_specific) {
-				print '<button type="submit" name="layout_scope" value="reset" class="button smallpaddingimp">'.dol_escape_htmltag($langs->trans('LabelLayoutReset')).'</button>';
+				print '<button type="submit" name="layout_scope" value="reset" class="button button-cancel smallpaddingimp">'.dol_escape_htmltag($langs->trans('LabelLayoutReset')).'</button>';
 			}
 			print '</div>';
 			print '</form>';
@@ -364,7 +405,6 @@ if ($fk_entrepot > 0) {
 		}
 
 		print binloc_label_layout_css($layout);
-		print binloc_render_level_legend($wh_levels);
 
 		foreach ($notices as $notice) {
 			print '<div class="warning">'.dol_escape_htmltag($notice).'</div>';
@@ -379,13 +419,14 @@ if ($fk_entrepot > 0) {
 			$print_url .= ($include_empty ? '&include_empty=1' : '');
 			$print_url .= '&output=print';
 
-			print '<div class="marginbottomonly">';
-			print '<span class="opacitymedium">'.$langs->trans('LabelsCountFor', count($bins), dol_escape_htmltag($level_label)).'</span> ';
+			print '<div class="binloc-results-bar">';
+			print '<span class="binloc-results-count">'.$langs->trans('LabelsCountFor', count($bins), dol_escape_htmltag($level_label)).'</span>';
 			print '<a href="'.$print_url.'" target="_blank" class="button">';
 			print img_picto('', 'printer', 'class="pictofixedwidth"').$langs->trans('PrintLabels');
 			print '</a>';
 			print '</div>';
 
+			print binloc_render_level_legend($wh_levels);
 			print binloc_labels_render_cards($bins, $layout);
 		}
 	}

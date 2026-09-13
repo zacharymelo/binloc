@@ -92,10 +92,6 @@
 	outline-offset: -2px;
 }
 
-.binloc-legend {
-	margin-bottom: 8px;
-}
-
 /* Invisible first submit so Enter runs the plain universal save, never a
    named Disable/Delete button (implicit submission uses the first button) */
 .binloc-default-submit {
@@ -105,23 +101,6 @@
 	height: 1px;
 	padding: 0;
 	border: 0;
-}
-
-.binloc-label-settings summary {
-	cursor: pointer;
-}
-
-.binloc-label-settings .binloc-inline-form {
-	align-items: flex-end;
-}
-
-.binloc-layout-field {
-	font-size: 0.85em;
-	white-space: nowrap;
-}
-
-.binloc-legend-title {
-	font-weight: bold;
 }
 
 /* ---- Bin labels (preview and print) ----
@@ -201,4 +180,214 @@
 /* Standalone print document (labels.php?output=print) */
 .binloc-print-body .binloc-label {
 	border-color: #000;
+}
+
+/* ---- Page structure: intro, toolbar, captioned fields, results bar ---- */
+
+.binloc-intro {
+	max-width: 70em;
+	margin: 0 0 12px;
+	opacity: 0.75;
+}
+
+/* Toolbar: every control is a captioned field on one wrapping row; the two
+   GET forms inside are display:contents so their fields share the row */
+.binloc-toolbar {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: flex-end;
+	gap: 6px 12px;
+	padding: 10px 12px;
+	margin-bottom: 10px;
+	border: 1px solid var(--bordercolor, rgba(0, 0, 0, 0.15));
+	border-radius: 4px;
+	background: var(--colorbacklineimpair2, transparent);
+}
+
+.binloc-toolbar form {
+	display: contents;
+}
+
+.binloc-toolbar-sep {
+	align-self: stretch;
+	width: 1px;
+	margin: 0 4px;
+	background: var(--bordercolor, rgba(0, 0, 0, 0.15));
+}
+
+.binloc-field {
+	display: inline-flex;
+	flex-direction: column;
+	gap: 2px;
+	min-width: 0;
+}
+
+.binloc-field-caption {
+	font-size: 0.72em;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+	opacity: 0.6;
+	white-space: nowrap;
+}
+
+.binloc-field-primary .binloc-field-caption {
+	opacity: 0.9;
+	font-weight: bold;
+}
+
+.binloc-field-primary select {
+	font-weight: bold;
+}
+
+.binloc-field select,
+.binloc-field input[type="text"] {
+	margin: 0;
+}
+
+.binloc-num {
+	width: 4.5em;
+	text-align: right;
+}
+
+.binloc-check {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	white-space: nowrap;
+	line-height: 1.9em;
+}
+
+.binloc-actions {
+	display: inline-flex;
+	gap: 6px;
+	align-items: center;
+}
+
+.binloc-results-bar {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	margin: 14px 0 8px;
+}
+
+.binloc-results-count {
+	font-size: 1.1em;
+	opacity: 0.8;
+}
+
+/* ---- Layout settings panel ---- */
+
+.binloc-label-settings summary {
+	cursor: pointer;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.binloc-summary-title {
+	font-weight: bold;
+}
+
+.binloc-badge {
+	font-size: 0.75em;
+	padding: 1px 8px;
+	border-radius: 10px;
+	border: 1px solid var(--bordercolor, rgba(0, 0, 0, 0.2));
+	opacity: 0.7;
+}
+
+.binloc-badge-on {
+	opacity: 1;
+	border-color: var(--colortextlinkaction, currentColor);
+	color: var(--colortextlinkaction, inherit);
+}
+
+.binloc-settings-grid {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px 22px;
+	margin-top: 10px;
+}
+
+.binloc-fs {
+	border: 0;
+	margin: 0;
+	padding: 0;
+	min-width: 0;
+}
+
+.binloc-fs legend {
+	padding: 0;
+	margin-bottom: 4px;
+	font-size: 0.8em;
+	font-weight: bold;
+	opacity: 0.8;
+}
+
+.binloc-fs-row {
+	display: flex;
+	gap: 8px;
+	align-items: flex-end;
+}
+
+.binloc-fs-checks .binloc-checks {
+	display: grid;
+	grid-template-columns: auto auto;
+	gap: 0 14px;
+}
+
+.binloc-hint {
+	margin: 10px 0 0;
+	max-width: 70em;
+	font-size: 0.85em;
+	opacity: 0.65;
+}
+
+.binloc-settings-footer {
+	margin-top: 10px;
+	padding-top: 10px;
+	border-top: 1px solid var(--bordercolor, rgba(0, 0, 0, 0.12));
+}
+
+/* ---- Key legend as chips ---- */
+
+.binloc-legend {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 6px 14px;
+	margin-bottom: 8px;
+	font-size: 0.85em;
+}
+
+.binloc-legend-title {
+	font-weight: bold;
+	opacity: 0.7;
+}
+
+.binloc-legend-group {
+	display: inline-flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 4px;
+}
+
+.binloc-legend-level {
+	opacity: 0.6;
+	margin-right: 2px;
+}
+
+.binloc-chip {
+	display: inline-flex;
+	align-items: baseline;
+	gap: 5px;
+	padding: 1px 7px 1px 5px;
+	border: 1px solid var(--bordercolor, rgba(0, 0, 0, 0.2));
+	border-radius: 3px;
+	white-space: nowrap;
+}
+
+.binloc-chip b {
+	font-family: monospace;
 }

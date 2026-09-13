@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.11.0] - 2026-09-12
+
+### Changed
+- **Bin Labels page redesign** — no functional change, same parameters and forms. Controls are grouped into one toolbar of captioned fields (warehouse, level, product search, per-level filters, empty bins, refresh) instead of three loose rows; the layout panel is organised into sections (Label, Padding, Type, Sheet, Show) with short captions and hover hints in place of the long paragraph, a state badge in its summary, and a proper footer for its actions; the results line puts the count and the Print button on one bar; the Key legend renders as code chips grouped per level instead of a run-on sentence. Chips also apply to the bulk-assign page and warehouse tab legends.
+
 ## [2.10.0] - 2026-09-12
 
 ### Added
