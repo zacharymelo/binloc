@@ -6,9 +6,13 @@
  * \ingroup binloc
  * \brief   Shared renderer for the pick / place sheet document models
  *
- * A trait because the three models must extend three different core bases
- * (ModelePDFCommandes, ModelePdfExpedition, ModelePdfReception). Rows come
- * from lib/binloc_sheets.lib.php; this file only draws.
+ * A trait because the models must extend different core bases
+ * (ModelePDFCommandes, ModelePdfExpedition, ModelePdfReception, ModelePDFMo).
+ * Rows come from lib/binloc_sheets.lib.php; this file only draws.
+ *
+ * A sheet is one or more sections (a manufacturing order has materials to
+ * pick, then finished goods to put away); each section has its own columns
+ * and starts on a new page.
  *
  * Two rules every model relies on:
  * - the file is <REF>-picksheet.pdf / <REF>-placesheet.pdf and
@@ -68,27 +72,40 @@ trait BinlocSheetPdfTrait
 	/**
 	 * Build rows for an object (or specimen rows) and write the sheet
 	 *
-	 * @param  CommonObject $object      Order, shipment or reception
+	 * @param  CommonObject $object      Order, shipment, reception or manufacturing order
 	 * @param  Translate    $outputlangs Output language
-	 * @param  array        $opts        kind ('pick'|'place'), dir, file_base, date, watermark, banner, default_const, provider (callable returning rows)
+	 * @param  array        $opts        kind ('pick'|'place', sets title and file name), dir, date, watermark, banner, default_const,
+	 *                                   and either provider (callable returning rows) or sections
+	 *                                   (list of {kind, title (translation key), provider})
 	 * @return int                       1 OK, 0 KO
 	 */
 	protected function binlocSheetGenerate($object, $outputlangs, $opts)
 	{
-		$outputlangs->loadLangs(array('main', 'dict', 'companies', 'products', 'stocks', 'productbatch', 'orders', 'sendings', 'receptions', 'binloc@binloc'));
+		$outputlangs->loadLangs(array('main', 'dict', 'companies', 'products', 'stocks', 'productbatch', 'orders', 'sendings', 'receptions', 'mrp', 'binloc@binloc'));
 
 		$suffix = ($opts['kind'] === 'place') ? '-placesheet.pdf' : '-picksheet.pdf';
+		$split  = getDolGlobalInt('BINLOC_SHEET_SPLIT_BY_WAREHOUSE') > 0;
+
+		if (!empty($opts['sections'])) {
+			$sections = $opts['sections'];
+		} else {
+			$sections = array(array('kind' => $opts['kind'], 'title' => '', 'provider' => $opts['provider']));
+		}
 
 		if (!empty($object->specimen)) {
-			$dir    = $opts['dir'];
-			$file   = $dir.'/SPECIMEN'.$suffix;
-			$groups = $this->binlocSheetSpecimenGroups($opts['kind']);
+			$dir  = $opts['dir'];
+			$file = $dir.'/SPECIMEN'.$suffix;
+			foreach ($sections as $k => $section) {
+				$sections[$k]['groups'] = $this->binlocSheetSpecimenGroups($section['kind']);
+			}
 		} else {
-			$ref    = dol_sanitizeFileName($object->ref);
-			$dir    = $opts['dir'].'/'.$ref;
-			$file   = $dir.'/'.$ref.$suffix;
-			$rows   = call_user_func($opts['provider'], $this->db, $object);
-			$groups = binloc_sheet_finalize($this->db, $rows, getDolGlobalInt('BINLOC_SHEET_SPLIT_BY_WAREHOUSE') > 0);
+			$ref  = dol_sanitizeFileName($object->ref);
+			$dir  = $opts['dir'].'/'.$ref;
+			$file = $dir.'/'.$ref.$suffix;
+			foreach ($sections as $k => $section) {
+				$rows = call_user_func($section['provider'], $this->db, $object);
+				$sections[$k]['groups'] = binloc_sheet_finalize($this->db, $rows, $split);
+			}
 			if (method_exists($object, 'fetch_thirdparty')) {
 				$object->fetch_thirdparty();
 			}
@@ -99,7 +116,7 @@ trait BinlocSheetPdfTrait
 			return 0;
 		}
 
-		$ok = $this->binlocSheetWrite($object, $outputlangs, $opts, $groups, $file);
+		$ok = $this->binlocSheetWrite($object, $outputlangs, $opts, $sections, $file);
 		if ($ok > 0) {
 			$this->result = array('fullpath' => $file);
 			$this->binlocSheetResetModel($object, $opts['default_const']);
@@ -113,11 +130,11 @@ trait BinlocSheetPdfTrait
 	 * @param  CommonObject $object      Source object
 	 * @param  Translate    $outputlangs Output language
 	 * @param  array        $opts        See binlocSheetGenerate()
-	 * @param  stdClass[]   $groups      From binloc_sheet_finalize()
+	 * @param  array        $sections    List of {kind, title, groups (from binloc_sheet_finalize())}
 	 * @param  string       $file        Full output path
 	 * @return int                       1 OK, 0 KO
 	 */
-	protected function binlocSheetWrite($object, $outputlangs, $opts, $groups, $file)
+	protected function binlocSheetWrite($object, $outputlangs, $opts, $sections, $file)
 	{
 		global $user;
 
@@ -143,59 +160,66 @@ trait BinlocSheetPdfTrait
 		// @phan-suppress-next-line PhanPluginSuspiciousParamOrder
 		$pdf->SetMargins($this->marge_gauche, $this->marge_haute, $this->marge_droite);
 
-		$cols   = $this->binlocSheetColumns($opts['kind']);
 		$bottom = $this->page_hauteur - $this->marge_basse - 8;
 		$left   = $this->marge_gauche;
 		$right  = $this->page_largeur - $this->marge_droite;
 		$split  = getDolGlobalInt('BINLOC_SHEET_SPLIT_BY_WAREHOUSE') > 0;
 
-		if (empty($groups) || (count($groups) === 1 && empty($groups[0]->rows))) {
-			$pdf->AddPage();
-			$y = $this->binlocSheetHeader($pdf, $object, $opts, null, $outputlangs, $fs, $title);
-			$pdf->SetFont('', '', $fs);
-			$pdf->SetXY($left, $y + 4);
-			$pdf->MultiCell($right - $left, 6, $outputlangs->convToOutputCharset($outputlangs->transnoentities('SheetNothingToList')), 0, 'L');
-		}
+		foreach ($sections as $section) {
+			$kind    = $section['kind'];
+			$cols    = $this->binlocSheetColumns($kind);
+			$heading = $section['title'] !== '' ? $outputlangs->transnoentities($section['title']) : '';
+			$groups  = $section['groups'];
 
-		foreach ($groups as $group) {
-			$pdf->AddPage();
-			$y = $this->binlocSheetHeader($pdf, $object, $opts, $split ? $group : null, $outputlangs, $fs, $title);
-			$y = $this->binlocSheetColumnTitles($pdf, $cols, $y, $outputlangs, $fs);
+			if (empty($groups) || (count($groups) === 1 && empty($groups[0]->rows))) {
+				$pdf->AddPage();
+				$y = $this->binlocSheetHeader($pdf, $object, $opts, null, $outputlangs, $fs, $title, $heading);
+				$pdf->SetFont('', '', $fs);
+				$pdf->SetXY($left, $y + 4);
+				$pdf->MultiCell($right - $left, 6, $outputlangs->convToOutputCharset($outputlangs->transnoentities('SheetNothingToList')), 0, 'L');
+				continue;
+			}
 
-			foreach ($group->rows as $row) {
-				$cells = $this->binlocSheetCells($row, $opts['kind'], !$split, $outputlangs);
+			foreach ($groups as $group) {
+				$pdf->AddPage();
+				$y = $this->binlocSheetHeader($pdf, $object, $opts, $split ? $group : null, $outputlangs, $fs, $title, $heading);
+				$y = $this->binlocSheetColumnTitles($pdf, $cols, $y, $outputlangs, $fs);
 
-				$h = 7;
-				foreach ($cols as $key => $col) {
-					if (!isset($cells[$key]) || $cells[$key] === '') {
-						continue;
-					}
-					$pdf->SetFont('', empty($col['bold']) ? '' : 'B', $fs + $col['size']);
-					$h = max($h, $pdf->getStringHeight($col['w'], $cells[$key]) + 2);
-				}
+				foreach ($group->rows as $row) {
+					$cells = $this->binlocSheetCells($row, $kind, !$split, $outputlangs);
 
-				if ($y + $h > $bottom) {
-					$pdf->AddPage();
-					$y = $this->binlocSheetHeader($pdf, $object, $opts, $split ? $group : null, $outputlangs, $fs, $title);
-					$y = $this->binlocSheetColumnTitles($pdf, $cols, $y, $outputlangs, $fs);
-				}
-
-				$x = $left;
-				foreach ($cols as $key => $col) {
-					if ($key === 'check') {
-						$pdf->Rect($x + 2, $y + 1.5, 4, 4);
-					} elseif ($key === 'writein') {
-						if ($row->status !== 'assigned') {
-							$pdf->Rect($x + 0.5, $y + 1, $col['w'] - 2, $h - 2);
+					$h = 7;
+					foreach ($cols as $key => $col) {
+						if (!isset($cells[$key]) || $cells[$key] === '') {
+							continue;
 						}
-					} elseif (isset($cells[$key]) && $cells[$key] !== '') {
 						$pdf->SetFont('', empty($col['bold']) ? '' : 'B', $fs + $col['size']);
-						$pdf->MultiCell($col['w'], $h, $cells[$key], 0, $col['align'], false, 0, $x, $y + 1);
+						$h = max($h, $pdf->getStringHeight($col['w'], $cells[$key]) + 2);
 					}
-					$x += $col['w'];
+
+					if ($y + $h > $bottom) {
+						$pdf->AddPage();
+						$y = $this->binlocSheetHeader($pdf, $object, $opts, $split ? $group : null, $outputlangs, $fs, $title, $heading);
+						$y = $this->binlocSheetColumnTitles($pdf, $cols, $y, $outputlangs, $fs);
+					}
+
+					$x = $left;
+					foreach ($cols as $key => $col) {
+						if ($key === 'check') {
+							$pdf->Rect($x + 2, $y + 1.5, 4, 4);
+						} elseif ($key === 'writein') {
+							if ($row->status !== 'assigned') {
+								$pdf->Rect($x + 0.5, $y + 1, $col['w'] - 2, $h - 2);
+							}
+						} elseif (isset($cells[$key]) && $cells[$key] !== '') {
+							$pdf->SetFont('', empty($col['bold']) ? '' : 'B', $fs + $col['size']);
+							$pdf->MultiCell($col['w'], $h, $cells[$key], 0, $col['align'], false, 0, $x, $y + 1);
+						}
+						$x += $col['w'];
+					}
+					$pdf->Line($left, $y + $h, $right, $y + $h);
+					$y += $h;
 				}
-				$pdf->Line($left, $y + $h, $right, $y + $h);
-				$y += $h;
 			}
 		}
 
@@ -231,9 +255,10 @@ trait BinlocSheetPdfTrait
 	 * @param  Translate     $outputlangs Output language
 	 * @param  int           $fs          Base font size
 	 * @param  string        $title       Sheet title
+	 * @param  string        $heading     Section heading (translated), '' for single-section sheets
 	 * @return float
 	 */
-	protected function binlocSheetHeader($pdf, $object, $opts, $group, $outputlangs, $fs, $title)
+	protected function binlocSheetHeader($pdf, $object, $opts, $group, $outputlangs, $fs, $title, $heading = '')
 	{
 		if (!empty($opts['watermark'])) {
 			pdf_watermark($pdf, $outputlangs, $this->page_hauteur, $this->page_largeur, 'mm', $opts['watermark']);
@@ -276,6 +301,13 @@ trait BinlocSheetPdfTrait
 		$pdf->MultiCell($w / 2, 4, $outputlangs->convToOutputCharset(implode("\n", $info)), 0, 'R');
 
 		$y = max($pdf->GetY(), $y + 15) + 3;
+
+		if ($heading !== '') {
+			$pdf->SetFont('', 'B', $fs + 3);
+			$pdf->SetXY($left, $y);
+			$pdf->MultiCell($w, 7, $outputlangs->convToOutputCharset($heading), 0, 'L');
+			$y += 8;
+		}
 
 		if ($group !== null) {
 			$wh = $group->warehouse_ref !== '' ? $group->warehouse_ref : $outputlangs->transnoentities('SheetNoWarehouse');

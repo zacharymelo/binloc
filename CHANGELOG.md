@@ -1,5 +1,20 @@
 # Changelog
 
+## [2.16.0] - 2026-09-13
+
+### Added
+- **Pick sheet on manufacturing orders** (`binlocpickmo`), switched on from binloc setup like the other sheets. One PDF, two sections:
+  - **Materials to pick:** each component's quantity still to consume (planned minus consumed). Stock comes from the line's warehouse, else the MO's, else any warehouse, with lots taken earliest eat-by first. Shortfalls and extra locations are noted, as on the sales order sheet.
+  - **Finished goods to put away:** the quantity still to produce and its bin in the MO's warehouse: assigned, *suggested* (a serial-tracked product whose other lots have a bin there), or a write-in box.
+- **Pick sheet button on the MO card**, shown on validated and in-progress MOs when the sheet is switched on. Drafts can still change and produced or cancelled MOs have nothing left to pick; the Documents block works at any status.
+
+### Changed
+- **Clearer shortfalls when stock is limited to one warehouse** (an MO line or MO with a warehouse, or a sales order with one). The short line is listed under that warehouse and says "No stock in this warehouse" / "Not enough stock in this warehouse", instead of "No stock available" while another warehouse may hold some.
+
+### Notes
+- Consuming a lot or serial moves it out of stock, which clears its bin. Consumed quantities drop off the sheet anyway; a sheet regenerated partway through a build may show *suggested* bins for lots still to pick.
+- **Upgrading by replacing files:** open binloc Settings once to register the MO card hook, then switch on **Pick sheet on manufacturing orders**.
+
 ## [2.15.4] - 2026-09-13
 
 ### Fixed

@@ -227,7 +227,7 @@ if ($output === 'print' && $fk_entrepot > 0) {
 	print '<html><head>'."\n";
 	print '<meta charset="utf-8">'."\n";
 	print '<title>'.dol_escape_htmltag($langs->trans('BinLabels')).'</title>'."\n";
-	print '<link rel="stylesheet" href="'.$css_url.'?v=2.15.4">'."\n";
+	print '<link rel="stylesheet" href="'.$css_url.'?v=2.16.0">'."\n";
 	print binloc_label_layout_css($layout);
 	print binloc_label_print_css($layout);
 	print '</head><body class="binloc-print-body binloc-print-'.dol_escape_htmltag($layout->print_mode).'">'."\n";

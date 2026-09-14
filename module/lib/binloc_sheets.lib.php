@@ -54,6 +54,13 @@ function binloc_sheet_models()
 			'setup_label' => 'SheetForReceptions',
 			'setup_url'   => '/admin/reception_setup.php',
 		),
+		'mrp' => array(
+			'name'        => 'binlocpickmo',
+			'label'       => 'PickSheet',
+			'const'       => 'MRP_MO_ADDON_PDF',
+			'setup_label' => 'SheetForMos',
+			'setup_url'   => '/admin/mrp.php',
+		),
 	);
 }
 
@@ -168,32 +175,7 @@ function binloc_sheet_rows_from_order($db, $order)
 		}
 
 		$candidates = binloc_sheet_stock_candidates($db, $fk_product, !empty($tobatch[$fk_product]), $fk_warehouse);
-
-		$left = $remaining;
-		$used = 0;
-		foreach ($candidates as $cand) {
-			if ($left <= 0) {
-				break;
-			}
-			$take = min($left, (float) $cand->qty);
-			$row = binloc_sheet_row($fk_product, $cand->fk_entrepot, $cand->fk_product_lot, $cand->batch, $take);
-			$row->qty_note = $langs->trans('SheetStockHere', price2num($cand->qty, 'MS'));
-			$rows[] = $row;
-			$left -= $take;
-			$used++;
-		}
-
-		$others = count($candidates) - $used;
-		if ($used > 0 && $others > 0) {
-			$last = $rows[count($rows) - 1];
-			$last->qty_note = implode(' · ', array($last->qty_note, $langs->trans('SheetOtherLocations', $others)));
-		}
-
-		if ($left > 0) {
-			$row = binloc_sheet_row($fk_product, 0, 0, '', $left);
-			$row->qty_note = $langs->trans($used > 0 ? 'SheetShortStock' : 'SheetNoStock');
-			$rows[] = $row;
-		}
+		binloc_sheet_allocate($rows, $fk_product, $remaining, $candidates, $fk_warehouse);
 	}
 
 	binloc_sheet_attach_locations($db, $rows);
@@ -316,6 +298,159 @@ function binloc_sheet_rows_from_reception($db, $rec)
 }
 
 /**
+ * Pick rows for a manufacturing order: materials still to consume
+ *
+ * Like an order, the MO names no lots or bins, so each line's remaining
+ * quantity is allocated from stock (earliest eat-by first for lots), limited
+ * to the line's warehouse, else the MO's, else any warehouse.
+ *
+ * @param  DoliDB $db Database handler
+ * @param  Mo     $mo Manufacturing order
+ * @return stdClass[]
+ */
+function binloc_sheet_rows_from_mo_materials($db, $mo)
+{
+	$rows = array();
+	foreach (binloc_sheet_mo_open_lines($db, $mo, 'toconsume', 'consumed') as $line) {
+		$candidates = binloc_sheet_stock_candidates($db, $line->fk_product, $line->lot_managed, $line->fk_warehouse);
+		binloc_sheet_allocate($rows, $line->fk_product, $line->remaining, $candidates, $line->fk_warehouse);
+	}
+
+	binloc_sheet_attach_locations($db, $rows);
+	return $rows;
+}
+
+/**
+ * Place rows for a manufacturing order: finished goods still to produce
+ *
+ * Serials don't exist until they are produced, so a lot-managed product can
+ * only be matched to a bin its other lots already use ('suggested').
+ *
+ * @param  DoliDB $db Database handler
+ * @param  Mo     $mo Manufacturing order
+ * @return stdClass[]
+ */
+function binloc_sheet_rows_from_mo_output($db, $mo)
+{
+	$rows = array();
+	foreach (binloc_sheet_mo_open_lines($db, $mo, 'toproduce', 'produced') as $line) {
+		$row = binloc_sheet_row($line->fk_product, $line->fk_warehouse, 0, '', $line->remaining);
+		$row->lot_managed = $line->lot_managed;
+		$rows[] = $row;
+	}
+
+	binloc_sheet_attach_locations($db, $rows);
+	return $rows;
+}
+
+/**
+ * Open lines of a manufacturing order for one role, with the quantity left
+ *
+ * Consumption and production are recorded as child lines ('consumed' /
+ * 'produced') pointing at the planned line through fk_mrp_production, so
+ * what is left is the planned quantity minus their sum. Service lines and
+ * lines that don't move stock (disable_stock_change) are skipped. The
+ * warehouse is the line's, else the MO's, else 0 (any).
+ *
+ * @param  DoliDB $db        Database handler
+ * @param  Mo     $mo        Manufacturing order
+ * @param  string $role      Planned role: 'toconsume' or 'toproduce'
+ * @param  string $done_role Recorded role: 'consumed' or 'produced'
+ * @return stdClass[]        {fk_product, fk_warehouse, remaining, lot_managed}
+ */
+function binloc_sheet_mo_open_lines($db, $mo, $role, $done_role)
+{
+	$out = array();
+	if (empty($mo->id)) {
+		return $out;
+	}
+
+	$sql = "SELECT l.fk_product, l.fk_warehouse, l.qty, l.disable_stock_change, p.fk_product_type, p.tobatch,";
+	$sql .= " (SELECT SUM(d.qty) FROM ".MAIN_DB_PREFIX."mrp_production as d";
+	$sql .= " WHERE d.fk_mrp_production = l.rowid AND d.role = '".$db->escape($done_role)."') as qty_done";
+	$sql .= " FROM ".MAIN_DB_PREFIX."mrp_production as l";
+	$sql .= " INNER JOIN ".MAIN_DB_PREFIX."product as p ON p.rowid = l.fk_product";
+	$sql .= " WHERE l.fk_mo = ".((int) $mo->id);
+	$sql .= " AND l.role = '".$db->escape($role)."'";
+	$sql .= " ORDER BY l.position ASC, l.rowid ASC";
+
+	$resql = $db->query($sql);
+	if (!$resql) {
+		dol_syslog('binloc_sheet_mo_open_lines '.$db->lasterror(), LOG_ERR);
+		return $out;
+	}
+	$mo_warehouse = empty($mo->fk_warehouse) ? 0 : (int) $mo->fk_warehouse;
+	while ($obj = $db->fetch_object($resql)) {
+		if ((int) $obj->fk_product_type !== 0 || !empty($obj->disable_stock_change)) {
+			continue;
+		}
+		$remaining = (float) $obj->qty - (float) $obj->qty_done;
+		if ($remaining <= 0) {
+			continue;
+		}
+		$line = new stdClass();
+		$line->fk_product   = (int) $obj->fk_product;
+		$line->fk_warehouse = !empty($obj->fk_warehouse) ? (int) $obj->fk_warehouse : $mo_warehouse;
+		$line->remaining    = $remaining;
+		$line->lot_managed  = isModEnabled('productbatch') && (int) $obj->tobatch > 0;
+		$out[] = $line;
+	}
+	$db->free($resql);
+	return $out;
+}
+
+/**
+ * Split a quantity across stock candidates, in their order, into sheet rows
+ *
+ * Takes from each candidate until the quantity is covered; notes how much
+ * stock each spot holds and how many other spots were not needed. A
+ * shortfall becomes a trailing row: in the warehouse the candidates were
+ * limited to (so it reads "no stock in this warehouse", not "no stock"), or
+ * with no warehouse when every warehouse was searched.
+ *
+ * @param  stdClass[] $rows         Sheet rows, appended to
+ * @param  int        $fk_product   Product ID
+ * @param  float      $qty          Quantity to allocate
+ * @param  stdClass[] $candidates   From binloc_sheet_stock_candidates()
+ * @param  int        $fk_warehouse Warehouse the candidates were limited to (0 = all)
+ * @return void
+ */
+function binloc_sheet_allocate(&$rows, $fk_product, $qty, $candidates, $fk_warehouse = 0)
+{
+	global $langs;
+
+	$left = $qty;
+	$used = 0;
+	foreach ($candidates as $cand) {
+		if ($left <= 0) {
+			break;
+		}
+		$take = min($left, (float) $cand->qty);
+		$row = binloc_sheet_row($fk_product, $cand->fk_entrepot, $cand->fk_product_lot, $cand->batch, $take);
+		$row->qty_note = $langs->trans('SheetStockHere', price2num($cand->qty, 'MS'));
+		$rows[] = $row;
+		$left -= $take;
+		$used++;
+	}
+
+	$others = count($candidates) - $used;
+	if ($used > 0 && $others > 0) {
+		$last = $rows[count($rows) - 1];
+		$last->qty_note = implode(' · ', array($last->qty_note, $langs->trans('SheetOtherLocations', $others)));
+	}
+
+	if ($left > 0) {
+		$row = binloc_sheet_row($fk_product, (int) $fk_warehouse, 0, '', $left);
+		if ($fk_warehouse > 0) {
+			$row->qty_note = $langs->trans($used > 0 ? 'SheetShortStockHere' : 'SheetNoStockHere');
+		} else {
+			$row->qty_note = $langs->trans($used > 0 ? 'SheetShortStock' : 'SheetNoStock');
+		}
+		$rows[] = $row;
+	}
+}
+
+/**
  * tobatch flag per product (products without batch management map to 0)
  *
  * @param  DoliDB $db          Database handler
@@ -433,7 +568,8 @@ function binloc_sheet_attach_locations($db, $rows)
 				$status = 'suggested';
 			}
 		}
-		if ($id <= 0 && $row->batch !== '') {
+		// Also for lot-managed output not produced yet (no batch): its other lots' bin
+		if ($id <= 0 && ($row->batch !== '' || !empty($row->lot_managed))) {
 			$id = binloc_sheet_any_lot_location($db, $row->fk_product, $row->fk_entrepot);
 			if ($id > 0) {
 				$status = 'suggested';

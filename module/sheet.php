@@ -61,6 +61,17 @@ $defs = array(
 		'subdir'     => '',
 		'suffix'     => '-placesheet.pdf',
 	),
+	'mrp' => array(
+		'class'      => 'Mo',
+		'include'    => array('/mrp/class/mo.class.php'),
+		'feature'    => 'mrp',
+		// restrictedArea() table and key: there is no llx_mrp table to check against
+		'restrict'   => array('mrp_mo', '', 'fk_soc', 'rowid'),
+		'card'       => '/mrp/mo_card.php',
+		'modulepart' => 'mrp',
+		'subdir'     => '',
+		'suffix'     => '-picksheet.pdf',
+	),
 );
 
 if (!isset($defs[$type]) || $id <= 0) {
@@ -85,7 +96,8 @@ if ($object->fetch($id) <= 0) {
 }
 
 // Same read access the card and its Documents block require (rights, entity, external users)
-restrictedArea($user, $def['feature'], $object->id);
+$restrict = isset($def['restrict']) ? $def['restrict'] : array('', '', 'fk_soc', 'rowid');
+restrictedArea($user, $def['feature'], $object->id, $restrict[0], $restrict[1], $restrict[2], $restrict[3]);
 
 $cardurl = DOL_URL_ROOT.$def['card'].'?id='.((int) $object->id);
 

@@ -333,9 +333,12 @@ jQuery(function ($) {
 
 		$contexts = isset($parameters['currentcontext']) ? explode(':', $parameters['currentcontext']) : array();
 		$cards = array(
-			'ordercard'      => array('type' => 'order', 'right' => 'commande', 'label' => 'PickSheet'),
-			'expeditioncard' => array('type' => 'shipping', 'right' => 'expedition', 'label' => 'PickSheet'),
-			'receptioncard'  => array('type' => 'reception', 'right' => 'reception', 'label' => 'PlaceSheet'),
+			'ordercard'      => array('type' => 'order', 'right' => array('commande', 'lire'), 'label' => 'PickSheet'),
+			'expeditioncard' => array('type' => 'shipping', 'right' => array('expedition', 'lire'), 'label' => 'PickSheet'),
+			'receptioncard'  => array('type' => 'reception', 'right' => array('reception', 'lire'), 'label' => 'PlaceSheet'),
+			// MO: validated and in progress only — a draft's lines can still change,
+			// and a produced or cancelled MO has nothing left to pick
+			'mocard'         => array('type' => 'mrp', 'right' => array('mrp', 'read'), 'label' => 'PickSheet', 'statuses' => array(1, 2)),
 		);
 		$card = null;
 		foreach ($cards as $context => $def) {
@@ -344,7 +347,10 @@ jQuery(function ($) {
 				break;
 			}
 		}
-		if ($card === null || empty($object->id) || !$user->hasRight($card['right'], 'lire')) {
+		if ($card === null || empty($object->id) || !$user->hasRight($card['right'][0], $card['right'][1])) {
+			return 0;
+		}
+		if (isset($card['statuses']) && !in_array((int) $object->status, $card['statuses'], true)) {
 			return 0;
 		}
 

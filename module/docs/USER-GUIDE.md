@@ -1,6 +1,6 @@
 # Binloc User Guide
 
-This guide covers everything a warehouse admin or operator does with Binloc day to day. It matches version **2.15.4**. Most fields in the module also carry a **?** hover tooltip with the same information in short form.
+This guide covers everything a warehouse admin or operator does with Binloc day to day. It matches version **2.16.0**. Most fields in the module also carry a **?** hover tooltip with the same information in short form.
 
 ## Contents
 
@@ -168,7 +168,7 @@ There's also an **Export assignments (CSV)** button directly on each warehouse's
 
 A sheet is a printable PDF listing where to pick goods from or put them away, one line per bin, with a tick box. There are two ways to make one:
 
-- **The shortcut:** on a sales order, **Create → Pick sheet**. On a shipment or reception, the **Pick sheet** / **Place sheet** button among the action buttons at the bottom of the card. One click generates the sheet and opens it in a new tab, ready to print.
+- **The shortcut:** on a sales order, **Create → Pick sheet**. On a shipment, reception or manufacturing order, the **Pick sheet** / **Place sheet** button among the action buttons at the bottom of the card (on manufacturing orders, only once validated and until produced). One click generates the sheet and opens it in a new tab, ready to print.
 - **The Documents block** at the bottom left of the card: choose **Pick sheet** / **Place sheet** in the model list and click **Generate**. Use this to regenerate or to email the sheet.
 
 Either way the file is kept in the Documents block. The shortcut only appears when that sheet is switched on (below). After upgrading Binloc by replacing its files, open the Binloc **Settings** page once so the shortcuts are registered. Disabling and re-enabling the module keeps the sheet switches as they were.
@@ -182,6 +182,7 @@ Either way the file is kept in the Documents block. The shortcut only appears wh
 | **Pick sheet on sales orders** | Pickers work from the order and the shipment is created afterwards from what they pulled. |
 | **Pick sheet on shipments** | The shipment is created first and names the warehouses and lots to pick. |
 | **Place sheet on receptions** | Received goods need putting away. |
+| **Pick sheet on manufacturing orders** | Materials are pulled for a build, and the finished goods need a bin. |
 
 The switches are the same ones as the Status column of the PDF models on the native Orders, Shipments and Receptions setup pages, so either page can be used.
 
@@ -197,6 +198,9 @@ The switches are the same ones as the Status column of the PDF models on the nat
   - Notes say how much stock is in each spot, how many other locations exist, and when stock is short.
 - **Shipment:** exactly the warehouses and lots on the shipment.
 - **Reception:** where each received line goes. Lines without a bin get an empty **Put in bin** box to write the bin in; assign it afterwards on the reception's **Bin Placement** tab.
+- **Manufacturing order:** two sections, each starting on a new page.
+  - **Materials to pick:** each component's quantity still to consume (what was already consumed drops off). Stock comes from the material line's warehouse, else the MO's warehouse, else any warehouse; lots are taken earliest eat-by date first, as on the sales order sheet.
+  - **Finished goods to put away:** the quantity still to produce, with its bin in the MO's warehouse or a **Put in bin** box. Serials don't exist until they are produced, so a serial-tracked product shows the bin its other serials use there as *suggested*.
 
 The **Bin** column only shows a bin in the line's own warehouse: the warehouse picked from, or the reception line's target warehouse. A bin belongs to one warehouse, so printing another warehouse's bin would send goods to a shelf the stock isn't booked into.
 

@@ -36,6 +36,7 @@ Layouts (size, padding, fonts, border, separator, what to show) are per warehous
 - **Sales order** pick sheet: for teams that pick before a shipment exists. Covers the unshipped quantity, earliest eat-by lots first.
 - **Shipment** pick sheet: the exact warehouses and lots on the shipment.
 - **Reception** place sheet: the assigned bin, a *suggested* bin, or a write-in box.
+- **Manufacturing order** pick sheet: the materials still to consume, then where the finished goods still to produce go.
 
 Each launch point has its own switch in binloc setup, so every organisation turns on the one that matches how it works. A second switch keeps all warehouses in one walking list or starts each warehouse on its own page. Sheets are saved beside the commercial PDF and never replace it.
 
