@@ -93,6 +93,31 @@ function binloc_sheet_model_enabled($db, $type)
 }
 
 /**
+ * True when a column exists on a table
+ *
+ * Lets one query serve several Dolibarr versions. A column the running
+ * version does not have is not an empty result but a failed statement, so
+ * the clause naming it has to be left out rather than allowed to run.
+ *
+ * @param  DoliDB $db    Database handler
+ * @param  string $table Table name without the prefix
+ * @param  string $field Column name
+ * @return bool
+ */
+function binloc_sheet_column_exists($db, $table, $field)
+{
+	static $cache = array();
+
+	$key = $table.'.'.$field;
+	if (!isset($cache[$key])) {
+		$resql = $db->DDLDescTable(MAIN_DB_PREFIX.$table, $field);
+		$cache[$key] = ($resql && $db->num_rows($resql) > 0);
+	}
+
+	return $cache[$key];
+}
+
+/**
  * New empty sheet row
  *
  * @param  int    $fk_product     Product ID
@@ -187,7 +212,7 @@ function binloc_sheet_rows_from_order($db, $order)
  *
  * Read straight from expeditiondet / expeditiondet_batch rather than
  * Expedition::fetch_lines(), which merges multi-warehouse splits of one
- * order line. Kit sub-lines (fk_parent) are skipped.
+ * order line. Kit sub-lines (fk_parent, Dolibarr 22 and later) are skipped.
  *
  * @param  DoliDB     $db  Database handler
  * @param  Expedition $exp Shipment
@@ -210,7 +235,12 @@ function binloc_sheet_rows_from_shipment($db, $exp)
 	$sql .= " LEFT JOIN ".MAIN_DB_PREFIX."expeditiondet_batch as eb ON eb.fk_expeditiondet = ed.rowid";
 	$sql .= " LEFT JOIN ".MAIN_DB_PREFIX."product_lot as pl ON (pl.fk_product = p.rowid AND pl.batch = eb.batch AND pl.entity IN (".getEntity('stock')."))";
 	$sql .= " WHERE ed.fk_expedition = ".((int) $exp->id);
-	$sql .= " AND (ed.fk_parent IS NULL OR ed.fk_parent = 0)";
+	// fk_parent only exists from Dolibarr 22: naming it on 21 would fail the
+	// whole query and the sheet would come back empty. Nothing is lost —
+	// shipment kit sub-lines arrived with the column
+	if (binloc_sheet_column_exists($db, 'expeditiondet', 'fk_parent')) {
+		$sql .= " AND (ed.fk_parent IS NULL OR ed.fk_parent = 0)";
+	}
 	$sql .= " ORDER BY ed.rang ASC, ed.rowid ASC, eb.rowid ASC";
 
 	$resql = $db->query($sql);

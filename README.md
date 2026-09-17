@@ -57,7 +57,7 @@ Everything else — layouts, output modes, tooltips — is a plain file swap.
 
 ## Requirements
 
-- Dolibarr 22 or later
+- Dolibarr 21 or later
 - Stock module enabled
 
 ## Install

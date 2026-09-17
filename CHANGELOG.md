@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.17.0] - 2026-09-17
+
+### Added
+- **Dolibarr 21 support.** The module's minimum is now Dolibarr 21 instead of 22. Every core table, column, function, hook context, tab key and PDF model class the module uses was checked against the 21.0 source; the one incompatibility is below.
+
+### Fixed
+- **Shipment pick sheets would have been empty on Dolibarr 21.** The query filtered out kit sub-lines with `expeditiondet.fk_parent`, a column added in Dolibarr 22 — naming it on 21 fails the whole statement, so no lines came back. The clause is now applied only where the column exists, which is also where shipment kit sub-lines exist.
+
+### Notes
+- Dolibarr 22 and later are unaffected: same query, same rows.
+
 ## [2.16.0] - 2026-09-13
 
 ### Added
