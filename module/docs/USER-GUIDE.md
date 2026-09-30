@@ -5,16 +5,17 @@ This guide covers everything a warehouse admin or operator does with Binloc day 
 ## Contents
 
 1. [Concepts](#concepts)
-2. [Setting up a warehouse's bin layout](#setting-up-a-warehouses-bin-layout)
-3. [Assigning products to bins](#assigning-products-to-bins)
-4. [Finding things: explore by bin](#finding-things-explore-by-bin)
-5. [Printing bin labels](#printing-bin-labels)
-6. [Spreadsheet workflow: CSV import/export](#spreadsheet-workflow-csv-importexport)
-7. [Pick and place sheets](#pick-and-place-sheets)
-8. [Serialized / lot-tracked products](#serialized--lot-tracked-products)
-9. [Settings](#settings)
-10. [Permissions](#permissions)
-11. [Troubleshooting](#troubleshooting)
+2. [Trying Binloc with demo data](#trying-binloc-with-demo-data)
+3. [Setting up a warehouse's bin layout](#setting-up-a-warehouses-bin-layout)
+4. [Assigning products to bins](#assigning-products-to-bins)
+5. [Finding things: explore by bin](#finding-things-explore-by-bin)
+6. [Printing bin labels](#printing-bin-labels)
+7. [Spreadsheet workflow: CSV import/export](#spreadsheet-workflow-csv-importexport)
+8. [Pick and place sheets](#pick-and-place-sheets)
+9. [Serialized / lot-tracked products](#serialized--lot-tracked-products)
+10. [Settings](#settings)
+11. [Permissions](#permissions)
+12. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -30,6 +31,41 @@ This guide covers everything a warehouse admin or operator does with Binloc day 
 - A **bin** is a distinct combination of level values. Bins are not records — a bin exists because something is assigned there, or because its values are configured (which is what lets empty bins be printed). The **bin code** is the values joined in level order: Side `A`, Rack `L`, Slot `2`, Shelf `5`, Row `3`, Column `B`, Bag `3` → `AL253B3` (a separator can be configured for labels).
 - A **bin location** (assignment) is one product's coordinates in one warehouse: a value for some or all of that warehouse's levels, plus an optional note. Non-serialized products get one assignment per warehouse; serialized/lot products get one per lot — and a serial can only be in one place at a time.
 - Dropdown and Letter values are referenced, not copied: **renaming a value updates every assignment that uses it, instantly**. A value that is in use cannot be deleted — you can *disable* it instead, which hides it from new entry while existing assignments keep displaying it (marked "legacy").
+
+## Trying Binloc with demo data
+
+The module ships a small demo — a hardware store in two warehouses — as CSV files in its `demo/` folder, so you can see every feature without typing a layout by hand. All refs start with `DEMO-`, so nothing collides with real data. Import them in order: files 1–3 with Dolibarr's own import tool, 4–6 on Binloc's **Import/Export** page.
+
+| File | Import with | What it adds |
+|---|---|---|
+| [1-warehouses.csv](demo/1-warehouses.csv) | Dolibarr: **Tools → Import**, dataset *Warehouses* | DEMO-MAIN (main store) and DEMO-OVFL (overflow) |
+| [2-products.csv](demo/2-products.csv) | Dolibarr: **Tools → Import**, dataset *Products* | 12 stock products |
+| [3-stock.csv](demo/3-stock.csv) | Dolibarr: **Tools → Import**, dataset *Stocks* | Quantities in each warehouse (needed for pick sheets) |
+| [4-binloc-layout.csv](demo/4-binloc-layout.csv) | Binloc: **Warehouse layout** | DEMO-MAIN: Aisle (A–F) › Bay (number) › Shelf (1–5). DEMO-OVFL: Zone (North/South/Dock) › Rack (text) |
+| [5-binloc-assignments-DEMO-MAIN.csv](demo/5-binloc-assignments-DEMO-MAIN.csv) | Binloc: **Bin assignments**, warehouse DEMO-MAIN | 9 products put in bins |
+| [6-binloc-assignments-DEMO-OVFL.csv](demo/6-binloc-assignments-DEMO-OVFL.csv) | Binloc: **Bin assignments**, warehouse DEMO-OVFL | 3 products put in bins |
+
+**Dolibarr's import tool (files 1–3)** needs the *Data import* module enabled (Setup → Modules → Tools). For each file: **Tools → Import → New import**, pick the dataset, choose **CSV**, upload the file, then click it to use it. Keep the `,` separator. On the mapping step, pick a target field for each column:
+
+| File | Column → target field |
+|---|---|
+| 1-warehouses.csv | `ref` → *Short name of location*, `description` → *Description warehouse*, `lieu` → *Localisation warehouse* |
+| 2-products.csv | `ref` → *Ref.*, `label` → *Label*, `type` → *Type*, `tosell` → *For sale*, `tobuy` → *For purchase* |
+| 3-stock.csv | `product` → *Product*, `warehouse` → *Warehouse*, `qty` → *Stock* |
+
+The header line is skipped automatically (import starts at line 2). Run the simulation — it should report no errors — then import.
+
+**Binloc's import (files 4–6):** on the Import/Export page, upload the layout file under *Warehouse layout*, and each assignments file under *Bin assignments* with its warehouse selected. Each import shows a preview before anything is written.
+
+**What to look at afterwards:**
+
+- **Bin Locations tab** on the DEMO-MAIN warehouse card — every product with its bin, filterable by aisle, bay and shelf.
+- **Bin Labels** (Products → Warehouses → Bin Labels) — print the labels for aisle A.
+- **Bulk Bin Assignment** (same menu) — DEMO-GASKET-40 is stocked in DEMO-MAIN but has no bin yet: assign one.
+- **Pick sheets** — switch them on in Binloc's settings, create a sales order for DEMO-BOLT-M6 and DEMO-FILTER-A, and print its pick sheet. The bolts are in both warehouses (the [pick priority](#settings) setting decides which is used), and DEMO-FILTER-A is in stock with no bin, so the sheet says so.
+- **CSV round trip** — export DEMO-MAIN's assignments, change a shelf in a spreadsheet and import it back: the preview lists only that change.
+
+To remove the demo, delete any orders you made with it, then the DEMO- products and warehouses; their bin assignments and layouts are deleted with them.
 
 ## Setting up a warehouse's bin layout
 
@@ -128,7 +164,7 @@ Because output is a layout setting and layouts are per level, bag tags can go to
 
 **Home → Setup → Modules → Bin Locations → Import/Export.** Built for Google Sheets/Excel: export, edit in the sheet, **File → Download → CSV**, import. Export output is directly re-importable.
 
-Every import is a two-step flow: **Upload and preview** shows each planned change and every error (with line numbers) before anything is written; **Confirm import** applies all-or-nothing — a file with any invalid row imports nothing rather than half-importing.
+Every import is a two-step flow: **Upload and preview** shows each planned change field by field (old → new) and every error (with line numbers) before anything is written, and folds away the rows that match what is already saved; **Write N changes** applies all-or-nothing — a file with any invalid row imports nothing rather than half-importing. Worked examples of both files are in the [demo data](#trying-binloc-with-demo-data).
 
 ### Layout CSV — the bin structure itself
 
@@ -157,7 +193,7 @@ P4;Serialized product;LOT001;R2;1;B;
 ```
 
 - Header: `product`, `product_label` (informational, ignored on import), `lot` (batch number, empty for non-serialized), **one column per level label**, `note`.
-- Rows are upserts matched on product ref + lot.
+- Rows are upserts matched on product ref + lot. A row identical to what is saved is reported as *No change* and not rewritten (dropdown values match case-insensitively; text levels are case-sensitive).
 - **Level columns present in the file are authoritative**: an empty cell clears that level; a row with all level cells empty removes the assignment entirely. Level columns you leave out of the file are left untouched.
 - A dropdown or letter value not in the allowed list makes the row an error — unless you tick **Create missing dropdown values**, in which case the preview shows each value that will be added.
 - Unknown product refs or lot numbers are always errors (the import never creates products or lots).

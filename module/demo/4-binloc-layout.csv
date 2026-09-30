@@ -1,0 +1,6 @@
+warehouse,level,label,type,allowed_values
+DEMO-MAIN,1,Aisle,letter,F
+DEMO-MAIN,2,Bay,number,
+DEMO-MAIN,3,Shelf,list,1|2|3|4|5
+DEMO-OVFL,1,Zone,list,North|South|Dock
+DEMO-OVFL,2,Rack,text,

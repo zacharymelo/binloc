@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.19.1] - 2026-09-30
+
+### Added
+- **Demo data for evaluating Binloc** in the module's `demo/` folder: a small hardware store in two warehouses (DEMO-MAIN, DEMO-OVFL) with 12 products. Files 1–3 (warehouses, products, stock) go in with Dolibarr's own Tools → Import; files 4–6 (layout, and assignments for each warehouse) on Binloc's Import/Export page. Every ref starts with `DEMO-`. The set leaves deliberate gaps — a stocked product with no bin, products in both warehouses — so bulk assignment, pick sheets and pick priority have something to show.
+- **"Trying Binloc with demo data" in the user guide**: which file goes where, the field to pick for each column in Dolibarr's import, and what to look at afterwards.
+- **Example files linked from the Import/Export page.** Each card's *File format and import rules* panel links its demo file(s), lists the files to import first and where, and links the walkthrough.
+
+### Changed
+- **Import report rows follow the file's line order**, so a layout level's new allowed values sit right after the level.
+- **User guide CSV section** describes the 2.19.0 preview (field-by-field changes, unchanged rows skipped).
+
 ## [2.19.0] - 2026-09-30
 
 ### Added

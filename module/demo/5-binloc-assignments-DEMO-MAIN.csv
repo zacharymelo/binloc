@@ -1,0 +1,10 @@
+product,product_label,lot,Aisle,Bay,Shelf,note
+DEMO-BOLT-M6,Hex bolt M6 x 30,,A,1,2,Fasteners
+DEMO-NUT-M6,Hex nut M6,,A,1,3,Fasteners
+DEMO-WASHER-M6,Flat washer M6,,A,1,4,Fasteners
+DEMO-SCREW-4X20,Wood screw 4 x 20,,A,2,2,
+DEMO-HINGE-75,Butt hinge 75 mm,,B,1,1,
+DEMO-BRACKET-L,Angle bracket 50 mm,,B,1,2,
+DEMO-GLUE-500,Wood glue 500 ml,,C,3,1,Keep from frost
+DEMO-TAPE-50,Duct tape 50 mm,,C,3,2,
+DEMO-SEALANT-300,Silicone sealant 300 ml,,C,4,1,

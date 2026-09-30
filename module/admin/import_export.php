@@ -251,6 +251,14 @@ function binloc_ie_print_report($report, $kind, $applied)
 		}
 	}
 
+	// File order (a layout level's new values follow the level); usort is
+	// stable on PHP 8, and "not in file" rows (line 0) keep their place last
+	$by_line = function ($a, $b) {
+		return ($a['line'] ?: PHP_INT_MAX) <=> ($b['line'] ?: PHP_INT_MAX);
+	};
+	usort($changed, $by_line);
+	usort($quiet, $by_line);
+
 	if ($changed) {
 		print '<div class="binloc-ie-subtitle">'.$langs->trans($applied ? 'CsvChangesWritten' : 'CsvChangesToWrite').'</div>';
 		binloc_ie_print_rows($changed, $kind);
@@ -359,11 +367,13 @@ function binloc_ie_step($num, $title, $hint, $body)
 /**
  * Print the collapsible "file format and import rules" panel of a section
  *
- * @param  array<string,string> $columns Column name => what it holds
- * @param  string[]             $rules   Import rules, one per bullet
+ * @param  array<string,string> $columns  Column name => what it holds
+ * @param  string[]             $rules    Import rules, one per bullet
+ * @param  string[]             $examples Demo files (in demo/) that show this format
+ * @param  array<string,string> $needs    Demo files to import first => where they are imported
  * @return void
  */
-function binloc_ie_format($columns, $rules)
+function binloc_ie_format($columns, $rules, $examples = array(), $needs = array())
 {
 	global $langs;
 
@@ -383,9 +393,35 @@ function binloc_ie_format($columns, $rules)
 		print '<li>'.$rule.'</li>';
 	}
 	print '</ul>';
+	if ($examples) {
+		print '<div class="binloc-ie-rules-title">'.$langs->trans('CsvExampleFiles').'</div>';
+		print '<ul class="binloc-ie-demo">';
+		foreach ($examples as $file) {
+			print '<li>'.binloc_ie_demo_link($file).'</li>';
+		}
+		print '</ul>';
+		print '<div class="binloc-ie-demo-needs">'.$langs->trans('CsvExampleNeeds').'</div>';
+		print '<ul class="binloc-ie-demo binloc-ie-demo-needs-list">';
+		foreach ($needs as $file => $where) {
+			print '<li>'.binloc_ie_demo_link($file).' <span class="opacitymedium">— '.$where.'</span></li>';
+		}
+		print '</ul>';
+		print '<a href="'.dol_buildpath('/binloc/help.php', 1).'#trying-binloc-with-demo-data">'.img_picto('', 'help', 'class="pictofixedwidth"').$langs->trans('CsvDemoWalkthrough').'</a>';
+	}
 	print '</div>';
 	print '</div>';
 	print '</details>';
+}
+
+/**
+ * Download link to a shipped demo file
+ *
+ * @param  string $file File name in the module's demo/ folder
+ * @return string       HTML
+ */
+function binloc_ie_demo_link($file)
+{
+	return '<a href="'.dol_buildpath('/binloc/demo/'.$file, 1).'" download>'.img_picto('', 'download', 'class="pictofixedwidth"').dol_escape_htmltag($file).'</a>';
 }
 
 /**
@@ -496,7 +532,9 @@ binloc_ie_format(
 		$langs->trans('CsvRuleLayoutMatch'),
 		$langs->trans('CsvRuleLayoutNoDelete'),
 		$langs->trans('CsvRuleLayoutRight'),
-	)
+	),
+	array('4-binloc-layout.csv'),
+	array('1-warehouses.csv' => $langs->trans('CsvViaDolibarrImport', $langs->transnoentitiesnoconv('Warehouses')))
 );
 print '</div>';
 
@@ -545,6 +583,12 @@ binloc_ie_format(
 		$langs->trans('CsvRuleAssignClear'),
 		$langs->trans('CsvRuleAssignValues'),
 		$langs->trans('CsvRuleAssignRight'),
+	),
+	array('5-binloc-assignments-DEMO-MAIN.csv', '6-binloc-assignments-DEMO-OVFL.csv'),
+	array(
+		'1-warehouses.csv'    => $langs->trans('CsvViaDolibarrImport', $langs->transnoentitiesnoconv('Warehouses')),
+		'2-products.csv'      => $langs->trans('CsvViaDolibarrImport', $langs->transnoentitiesnoconv('Products')),
+		'4-binloc-layout.csv' => $langs->trans('CsvViaLayoutCard'),
 	)
 );
 print '</div>';
