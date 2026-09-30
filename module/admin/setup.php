@@ -17,7 +17,7 @@ dol_include_once('/binloc/lib/binloc.lib.php');
 dol_include_once('/binloc/class/binlocmigration.class.php');
 dol_include_once('/binloc/lib/binloc_sheets.lib.php');
 
-$langs->loadLangs(array('admin', 'binloc@binloc'));
+$langs->loadLangs(array('admin', 'stocks', 'binloc@binloc'));
 
 if (!$user->admin) {
 	accessforbidden();
@@ -72,12 +72,45 @@ if (($action === 'sheet_on' || $action === 'sheet_off') && isset($sheet_models[G
 	exit;
 }
 
+if ($action === 'set_pick_priority') {
+	$mode = GETPOST('pick_priority', 'aZ09');
+	if (isset(binloc_sheet_pick_priorities()[$mode])) {
+		dolibarr_set_const($db, 'BINLOC_SHEET_PICK_PRIORITY', $mode, 'chaine', 0, '', $conf->entity);
+		setEventMessages($langs->trans('SetupSaved'), null, 'mesgs');
+	}
+	header('Location: '.$_SERVER['PHP_SELF']);
+	exit;
+}
+
+if ($action === 'set_warehouse_ranks') {
+	$posted = GETPOST('wh_rank', 'array');
+	$ranks = array();
+	if (is_array($posted)) {
+		foreach ($posted as $wh => $rank) {
+			$rank = trim((string) $rank);
+			if ((int) $wh > 0 && $rank !== '' && is_numeric($rank)) {
+				$ranks[(int) $wh] = (int) $rank;
+			}
+		}
+	}
+	if (empty($ranks)) {
+		dolibarr_del_const($db, 'BINLOC_SHEET_WAREHOUSE_RANKS', $conf->entity);
+	} else {
+		dolibarr_set_const($db, 'BINLOC_SHEET_WAREHOUSE_RANKS', json_encode($ranks), 'chaine', 0, '', $conf->entity);
+	}
+	setEventMessages($langs->trans('SetupSaved'), null, 'mesgs');
+	header('Location: '.$_SERVER['PHP_SELF'].'#pickorder');
+	exit;
+}
+
 $migration_status = $migration->getStatus();
 
 // ---- VIEW ----
 
 $page_name = 'BinlocSetup';
 llxHeader('', $langs->trans($page_name), binloc_help_url());
+
+$form = new Form($db);
 
 $head = binloc_admin_prepare_head();
 print dol_get_fiche_head($head, 'settings', $langs->trans($page_name), -1, 'stock');
@@ -174,6 +207,103 @@ print '<td class="opacitymedium">'.$langs->trans('SheetSplitByWarehouseDesc').'<
 print '</tr>';
 
 print '</table>';
+
+// Pick priority: how order and MO sheets choose where to take stock from
+print '<br>';
+print load_fiche_titre($langs->trans('PickPrioritySection'), '', '');
+print '<div class="opacitymedium marginbottomonly">'.$langs->trans('PickPrioritySectionDesc').'</div>';
+
+print '<table class="noborder centpercent">';
+print '<tr class="liste_titre">';
+print '<td>'.$langs->trans('Parameter').'</td>';
+print '<td class="center" width="100">'.$langs->trans('Value').'</td>';
+print '<td>'.$langs->trans('Description').'</td>';
+print '</tr>';
+
+$current_mode = binloc_sheet_pick_priority();
+print '<tr class="oddeven">';
+print '<td>'.$langs->trans('PickPriority').'</td>';
+print '<td class="nowraponall">';
+print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'">';
+print '<input type="hidden" name="token" value="'.newToken().'">';
+print '<input type="hidden" name="action" value="set_pick_priority">';
+$mode_options = array();
+foreach (binloc_sheet_pick_priorities() as $mode => $label_key) {
+	$mode_options[$mode] = $langs->trans($label_key);
+}
+print $form->selectarray('pick_priority', $mode_options, $current_mode, 0, 0, 0, '', 0, 0, 0, '', 'minwidth200');
+print ' <input type="submit" class="button small" value="'.$langs->trans('Save').'">';
+print '</form>';
+print '</td>';
+print '<td class="opacitymedium">'.$langs->trans(binloc_sheet_pick_priorities()[$current_mode].'Desc').'</td>';
+print '</tr>';
+
+print '<tr class="oddeven">';
+print '<td>'.$langs->trans('PickPriorityOverExpiry').'</td>';
+print '<td class="center">';
+print ajax_constantonoff('BINLOC_SHEET_PRIORITY_OVER_EXPIRY');
+print '</td>';
+print '<td class="opacitymedium">'.$langs->trans('PickPriorityOverExpiryDesc').'</td>';
+print '</tr>';
+
+print '<tr class="oddeven">';
+print '<td>'.$langs->trans('PickWarehousePreferred').'</td>';
+print '<td class="center">';
+print ajax_constantonoff('BINLOC_SHEET_WAREHOUSE_PREFERRED');
+print '</td>';
+print '<td class="opacitymedium">'.$langs->trans('PickWarehousePreferredDesc').'</td>';
+print '</tr>';
+
+print '</table>';
+
+// Warehouse pick order (ranks): the 'warehouse' mode's key, every mode's tiebreak
+print '<br>';
+print '<a id="pickorder"></a>';
+print load_fiche_titre($langs->trans('PickWarehouseOrder'), '', '');
+print '<div class="opacitymedium marginbottomonly">'.$langs->trans('PickWarehouseOrderDesc').'</div>';
+
+$ranks = binloc_sheet_warehouse_ranks();
+$warehouses = array();
+$sql = "SELECT rowid, ref, lieu, statut FROM ".MAIN_DB_PREFIX."entrepot";
+$sql .= " WHERE entity IN (".getEntity('stock').")";
+$sql .= " ORDER BY ref ASC";
+$resql = $db->query($sql);
+if ($resql) {
+	while ($obj = $db->fetch_object($resql)) {
+		$warehouses[] = $obj;
+	}
+	$db->free($resql);
+}
+usort($warehouses, function ($a, $b) use ($ranks) {
+	$ra = isset($ranks[(int) $a->rowid]) ? $ranks[(int) $a->rowid] : PHP_INT_MAX;
+	$rb = isset($ranks[(int) $b->rowid]) ? $ranks[(int) $b->rowid] : PHP_INT_MAX;
+	return ($ra <=> $rb) ?: strcmp($a->ref, $b->ref);
+});
+
+print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'">';
+print '<input type="hidden" name="token" value="'.newToken().'">';
+print '<input type="hidden" name="action" value="set_warehouse_ranks">';
+print '<table class="noborder centpercent">';
+print '<tr class="liste_titre">';
+print '<td>'.$langs->trans('Warehouse').'</td>';
+print '<td class="center" width="100">'.$langs->trans('PickWarehouseRank').'</td>';
+print '<td>'.$langs->trans('Status').'</td>';
+print '</tr>';
+if (empty($warehouses)) {
+	print '<tr class="oddeven"><td colspan="3" class="opacitymedium">'.$langs->trans('NoRecordFound').'</td></tr>';
+}
+foreach ($warehouses as $wh) {
+	$id = (int) $wh->rowid;
+	$closed = ((int) $wh->statut === 0);
+	print '<tr class="oddeven'.($closed ? ' opacitymedium' : '').'">';
+	print '<td>'.dol_escape_htmltag($wh->ref).($wh->lieu ? ' <span class="opacitymedium">'.dol_escape_htmltag($wh->lieu).'</span>' : '').'</td>';
+	print '<td class="center"><input type="number" class="width50 center" name="wh_rank['.$id.']" min="0" step="1" value="'.(isset($ranks[$id]) ? $ranks[$id] : '').'"'.($closed ? ' readonly' : '').'></td>';
+	print '<td>'.($closed ? $langs->trans('PickWarehouseClosed') : $langs->trans('Opened')).'</td>';
+	print '</tr>';
+}
+print '</table>';
+print '<div class="center margintoponly"><input type="submit" class="button" value="'.$langs->trans('Save').'"></div>';
+print '</form>';
 
 print dol_get_fiche_end();
 llxFooter();

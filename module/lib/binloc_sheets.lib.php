@@ -93,6 +93,55 @@ function binloc_sheet_model_enabled($db, $type)
 }
 
 /**
+ * Pick priority modes: the order stock candidates are taken in when a sheet
+ * allocates a quantity itself (sales order and MO sheets; a shipment names
+ * its warehouses and lots). Keyed by BINLOC_SHEET_PICK_PRIORITY value.
+ *
+ * @return array<string,string> mode => translation key
+ */
+function binloc_sheet_pick_priorities()
+{
+	return array(
+		'bins'      => 'PickPriorityBins',
+		'warehouse' => 'PickPriorityWarehouse',
+		'fewest'    => 'PickPriorityFewest',
+		'smallest'  => 'PickPrioritySmallest',
+		'alpha'     => 'PickPriorityAlpha',
+	);
+}
+
+/**
+ * Active pick priority mode (unset or unknown = 'bins')
+ *
+ * @return string
+ */
+function binloc_sheet_pick_priority()
+{
+	$mode = getDolGlobalString('BINLOC_SHEET_PICK_PRIORITY', 'bins');
+	$modes = binloc_sheet_pick_priorities();
+	return isset($modes[$mode]) ? $mode : 'bins';
+}
+
+/**
+ * Warehouse pick ranks from setup: lower is picked first, unranked omitted
+ *
+ * @return array<int,int> fk_entrepot => rank
+ */
+function binloc_sheet_warehouse_ranks()
+{
+	$ranks = json_decode(getDolGlobalString('BINLOC_SHEET_WAREHOUSE_RANKS'), true);
+	$out = array();
+	if (is_array($ranks)) {
+		foreach ($ranks as $wh => $rank) {
+			if ((int) $wh > 0 && is_numeric($rank)) {
+				$out[(int) $wh] = (int) $rank;
+			}
+		}
+	}
+	return $out;
+}
+
+/**
  * True when a column exists on a table
  *
  * Lets one query serve several Dolibarr versions. A column the running
@@ -153,10 +202,11 @@ function binloc_sheet_row($fk_product, $fk_entrepot, $fk_product_lot, $batch, $q
  * Pick rows for a sales order: where to take the not-yet-shipped quantity from
  *
  * The order does not name lots or bins, so candidates are read from stock:
- * lots with stock (earliest eat-by first) for lot-managed products, warehouse
- * stock otherwise — limited to the order's warehouse when it has one. The
- * remaining quantity is allocated across candidates until covered; a line
- * with too little stock gets a trailing 'none' row for the shortfall.
+ * lots with stock for lot-managed products, warehouse stock otherwise, in
+ * pick priority order, from the order's warehouse when it has one (see
+ * binloc_sheet_pick()). The remaining quantity is allocated across candidates
+ * until covered; a line with too little stock gets a trailing 'none' row for
+ * the shortfall.
  *
  * @param  DoliDB   $db    Database handler
  * @param  Commande $order Sales order (lines loaded)
@@ -199,8 +249,7 @@ function binloc_sheet_rows_from_order($db, $order)
 			continue;
 		}
 
-		$candidates = binloc_sheet_stock_candidates($db, $fk_product, !empty($tobatch[$fk_product]), $fk_warehouse);
-		binloc_sheet_allocate($rows, $fk_product, $remaining, $candidates, $fk_warehouse);
+		binloc_sheet_pick($db, $rows, $fk_product, !empty($tobatch[$fk_product]), $remaining, $fk_warehouse);
 	}
 
 	binloc_sheet_attach_locations($db, $rows);
@@ -331,8 +380,8 @@ function binloc_sheet_rows_from_reception($db, $rec)
  * Pick rows for a manufacturing order: materials still to consume
  *
  * Like an order, the MO names no lots or bins, so each line's remaining
- * quantity is allocated from stock (earliest eat-by first for lots), limited
- * to the line's warehouse, else the MO's, else any warehouse.
+ * quantity is allocated from stock in pick priority order, from the line's
+ * warehouse, else the MO's, else any warehouse (see binloc_sheet_pick()).
  *
  * @param  DoliDB $db Database handler
  * @param  Mo     $mo Manufacturing order
@@ -342,8 +391,7 @@ function binloc_sheet_rows_from_mo_materials($db, $mo)
 {
 	$rows = array();
 	foreach (binloc_sheet_mo_open_lines($db, $mo, 'toconsume', 'consumed') as $line) {
-		$candidates = binloc_sheet_stock_candidates($db, $line->fk_product, $line->lot_managed, $line->fk_warehouse);
-		binloc_sheet_allocate($rows, $line->fk_product, $line->remaining, $candidates, $line->fk_warehouse);
+		binloc_sheet_pick($db, $rows, $line->fk_product, $line->lot_managed, $line->remaining, $line->fk_warehouse);
 	}
 
 	binloc_sheet_attach_locations($db, $rows);
@@ -506,43 +554,68 @@ function binloc_sheet_products_tobatch($db, $product_ids)
 }
 
 /**
- * Stock a product can be picked from: one entry per lot (earliest eat-by
- * first) or per warehouse
+ * Allocate a quantity of a product from stock into sheet rows, in pick
+ * priority order
+ *
+ * A warehouse named by the document (order, MO line or MO) limits the search
+ * to it, or with BINLOC_SHEET_WAREHOUSE_PREFERRED is searched first and the
+ * other warehouses cover what it lacks — so a shortfall then means no stock
+ * anywhere, not just there.
+ *
+ * @param  DoliDB     $db           Database handler
+ * @param  stdClass[] $rows         Sheet rows, appended to
+ * @param  int        $fk_product   Product ID
+ * @param  bool       $lots         Product is lot/serial managed
+ * @param  float      $qty          Quantity to allocate
+ * @param  int        $fk_warehouse Warehouse the document names (0 = none)
+ * @return void
+ */
+function binloc_sheet_pick($db, &$rows, $fk_product, $lots, $qty, $fk_warehouse)
+{
+	$fk_warehouse = (int) $fk_warehouse;
+	$preferred = ($fk_warehouse > 0 && getDolGlobalString('BINLOC_SHEET_WAREHOUSE_PREFERRED'));
+	$scope = $preferred ? 0 : $fk_warehouse;
+
+	$candidates = binloc_sheet_stock_candidates($db, $fk_product, $lots, $scope);
+	$candidates = binloc_sheet_sort_candidates($db, $fk_product, $lots, $candidates, $qty, $preferred ? $fk_warehouse : 0);
+	binloc_sheet_allocate($rows, $fk_product, $qty, $candidates, $scope);
+}
+
+/**
+ * Stock a product can be picked from: one entry per lot or per warehouse,
+ * unsorted (binloc_sheet_sort_candidates() orders them)
+ *
+ * Closed warehouses are skipped: their stock is not meant to be picked.
  *
  * @param  DoliDB $db           Database handler
  * @param  int    $fk_product   Product ID
  * @param  bool   $lots         Product is lot/serial managed
  * @param  int    $fk_warehouse Limit to this warehouse (0 = all)
- * @return stdClass[]           {fk_entrepot, fk_product_lot, batch, qty}
+ * @return stdClass[]           {fk_entrepot, warehouse_ref, fk_product_lot, batch, eatby, qty}
  */
 function binloc_sheet_stock_candidates($db, $fk_product, $lots, $fk_warehouse = 0)
 {
 	$out = array();
 
 	if ($lots) {
-		$sql = "SELECT ps.fk_entrepot, pb.batch, pb.qty, pl.rowid as fk_product_lot, pl.eatby";
+		$sql = "SELECT ps.fk_entrepot, e.ref, pb.batch, pb.qty, pl.rowid as fk_product_lot, pl.eatby";
 		$sql .= " FROM ".MAIN_DB_PREFIX."product_batch as pb";
 		$sql .= " INNER JOIN ".MAIN_DB_PREFIX."product_stock as ps ON ps.rowid = pb.fk_product_stock";
 		$sql .= " INNER JOIN ".MAIN_DB_PREFIX."entrepot as e ON e.rowid = ps.fk_entrepot";
 		$sql .= " LEFT JOIN ".MAIN_DB_PREFIX."product_lot as pl ON (pl.fk_product = ps.fk_product AND pl.batch = pb.batch AND pl.entity IN (".getEntity('stock')."))";
 		$sql .= " WHERE ps.fk_product = ".((int) $fk_product);
 		$sql .= " AND pb.qty > 0";
-		$sql .= " AND e.entity IN (".getEntity('stock').")";
-		if ($fk_warehouse > 0) {
-			$sql .= " AND ps.fk_entrepot = ".((int) $fk_warehouse);
-		}
-		$sql .= " ORDER BY (pl.eatby IS NULL) ASC, pl.eatby ASC, pb.batch ASC";
 	} else {
-		$sql = "SELECT ps.fk_entrepot, ps.reel as qty, e.ref";
+		$sql = "SELECT ps.fk_entrepot, e.ref, ps.reel as qty";
 		$sql .= " FROM ".MAIN_DB_PREFIX."product_stock as ps";
 		$sql .= " INNER JOIN ".MAIN_DB_PREFIX."entrepot as e ON e.rowid = ps.fk_entrepot";
 		$sql .= " WHERE ps.fk_product = ".((int) $fk_product);
 		$sql .= " AND ps.reel > 0";
-		$sql .= " AND e.entity IN (".getEntity('stock').")";
-		if ($fk_warehouse > 0) {
-			$sql .= " AND ps.fk_entrepot = ".((int) $fk_warehouse);
-		}
-		$sql .= " ORDER BY e.ref ASC";
+	}
+	$sql .= " AND e.entity IN (".getEntity('stock').")";
+	$sql .= " AND e.statut <> 0";
+	if ($fk_warehouse > 0) {
+		$sql .= " AND ps.fk_entrepot = ".((int) $fk_warehouse);
 	}
 
 	$resql = $db->query($sql);
@@ -553,13 +626,118 @@ function binloc_sheet_stock_candidates($db, $fk_product, $lots, $fk_warehouse = 
 	while ($obj = $db->fetch_object($resql)) {
 		$cand = new stdClass();
 		$cand->fk_entrepot    = (int) $obj->fk_entrepot;
+		$cand->warehouse_ref  = (string) $obj->ref;
 		$cand->fk_product_lot = $lots ? (int) $obj->fk_product_lot : 0;
 		$cand->batch          = $lots ? (string) $obj->batch : '';
+		$cand->eatby          = ($lots && !empty($obj->eatby)) ? (string) $obj->eatby : '';
 		$cand->qty            = (float) $obj->qty;
 		$out[] = $cand;
 	}
 	$db->free($resql);
 	return $out;
+}
+
+/**
+ * Order stock candidates by the pick priority settings
+ *
+ * Sort keys, first difference wins:
+ *  1. the preferred warehouse (a document's warehouse in preference mode)
+ *  2. lots: earliest eat-by, no eat-by last — unless
+ *     BINLOC_SHEET_PRIORITY_OVER_EXPIRY moves it after step 3
+ *  3. the mode (BINLOC_SHEET_PICK_PRIORITY):
+ *     bins      — bin for this exact lot/product here, then any bin of the
+ *                 product here, then none
+ *     warehouse — setup rank (unranked last), then bins
+ *     fewest    — spots holding the whole quantity, then bins, then most stock
+ *     smallest  — least stock, then bins
+ *     alpha     — nothing (warehouse ref below)
+ *  4. warehouse rank, warehouse ref, batch — so every mode is deterministic
+ *
+ * @param  DoliDB     $db            Database handler
+ * @param  int        $fk_product    Product ID
+ * @param  bool       $lots          Product is lot/serial managed
+ * @param  stdClass[] $candidates    From binloc_sheet_stock_candidates()
+ * @param  float      $qty           Quantity to allocate (for 'fewest')
+ * @param  int        $preferred_wh  Warehouse to take from first (0 = none)
+ * @return stdClass[]
+ */
+function binloc_sheet_sort_candidates($db, $fk_product, $lots, $candidates, $qty, $preferred_wh = 0)
+{
+	if (count($candidates) < 2) {
+		return $candidates;
+	}
+
+	$mode = binloc_sheet_pick_priority();
+	$ranks = binloc_sheet_warehouse_ranks();
+	$expiry_first = !getDolGlobalString('BINLOC_SHEET_PRIORITY_OVER_EXPIRY');
+
+	// Bins of this product: [fk_entrepot][fk_product_lot] (0 = product-level)
+	$bins = array();
+	$sql = "SELECT fk_entrepot, fk_product_lot FROM ".MAIN_DB_PREFIX."binloc_product_location";
+	$sql .= " WHERE fk_product = ".((int) $fk_product);
+	$sql .= " AND entity IN (".getEntity('stock').")";
+	$resql = $db->query($sql);
+	if ($resql) {
+		while ($obj = $db->fetch_object($resql)) {
+			$bins[(int) $obj->fk_entrepot][(int) $obj->fk_product_lot] = true;
+		}
+		$db->free($resql);
+	}
+
+	foreach ($candidates as $cand) {
+		$wh = $cand->fk_entrepot;
+		// Same precedence as binloc_sheet_attach_locations(): assigned, then suggested
+		$exact_lot = $lots ? $cand->fk_product_lot : 0;
+		if ((!$lots || $exact_lot > 0) && isset($bins[$wh][$exact_lot])) {
+			$cand->bin_score = 2;
+		} elseif (!empty($bins[$wh])) {
+			$cand->bin_score = 1;
+		} else {
+			$cand->bin_score = 0;
+		}
+		$cand->rank = isset($ranks[$wh]) ? $ranks[$wh] : PHP_INT_MAX;
+	}
+
+	$by_expiry = function ($a, $b) use ($lots) {
+		if (!$lots || $a->eatby === $b->eatby) {
+			return 0;
+		}
+		if ($a->eatby === '' || $b->eatby === '') {
+			return $a->eatby === '' ? 1 : -1;
+		}
+		return strcmp($a->eatby, $b->eatby);
+	};
+	$by_mode = function ($a, $b) use ($mode, $qty) {
+		$by_bins = $b->bin_score <=> $a->bin_score;
+		switch ($mode) {
+			case 'warehouse':
+				return ($a->rank <=> $b->rank) ?: $by_bins;
+			case 'fewest':
+				return ((int) ($b->qty >= $qty) <=> (int) ($a->qty >= $qty)) ?: $by_bins ?: ($b->qty <=> $a->qty);
+			case 'smallest':
+				return ($a->qty <=> $b->qty) ?: $by_bins;
+			case 'alpha':
+				return 0;
+			default:
+				return $by_bins;
+		}
+	};
+
+	usort($candidates, function ($a, $b) use ($preferred_wh, $expiry_first, $by_expiry, $by_mode) {
+		if ($preferred_wh > 0) {
+			$cmp = (int) ($b->fk_entrepot === $preferred_wh) <=> (int) ($a->fk_entrepot === $preferred_wh);
+			if ($cmp) {
+				return $cmp;
+			}
+		}
+		$cmp = $expiry_first ? ($by_expiry($a, $b) ?: $by_mode($a, $b)) : ($by_mode($a, $b) ?: $by_expiry($a, $b));
+		if ($cmp) {
+			return $cmp;
+		}
+		return ($a->rank <=> $b->rank) ?: strcmp($a->warehouse_ref, $b->warehouse_ref) ?: strcmp($a->batch, $b->batch);
+	});
+
+	return $candidates;
 }
 
 /**

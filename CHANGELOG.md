@@ -1,5 +1,27 @@
 # Changelog
 
+## [2.18.0] - 2026-09-30
+
+### Added
+- **Pick priority setting** (Settings → Pick priority): how sales order and manufacturing order pick sheets choose where to take stock from when a product sits in several warehouses or lots.
+  - **Locations with a bin first** (default): stock whose exact product or lot has a bin, then stock in a warehouse where the product has some bin, then stock with no bin.
+  - **Warehouse order:** warehouses in the order ranked on the setup page, closest or main store first, then bins first within a warehouse.
+  - **Fewest stops:** a location holding the whole quantity first, then bins, then the most stock, so a line splits across as few places as possible.
+  - **Clear small stock first:** smallest quantities first, to empty nearly-empty spots.
+  - **Alphabetical (legacy):** warehouses by reference, ignoring bins — the behaviour before this release.
+- **Warehouse pick order:** a rank per warehouse on the setup page. Drives the Warehouse order setting and breaks ties in every other one.
+- **Pick priority beats lot expiry** (off by default): lot/serial products keep taking the earliest eat-by lot first unless this is on.
+- **Document warehouse is a preference** (off by default): when an order, MO line or MO names a warehouse, it is searched first and other warehouses cover the rest, instead of that warehouse only.
+
+### Changed
+- **Pick sheets now prefer stock that has a bin.** Previously, when an MO or order named no warehouse, stock was taken from warehouses in alphabetical order, so a warehouse with no bins could win over the one holding the product's bin ("No bin assigned — Has a bin in: …"). Choose **Alphabetical (legacy)** to keep the old order.
+
+### Fixed
+- **Closed warehouses no longer appear on pick sheets.** Their stock was listed like any other; it is now never picked from, in every setting.
+
+### Notes
+- Shipment pick sheets are unchanged: they list the warehouses and lots the shipment already names.
+
 ## [2.17.0] - 2026-09-17
 
 ### Added

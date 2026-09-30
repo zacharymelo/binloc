@@ -64,8 +64,9 @@ added there when the module lands rather than pre-emptively.
 **Pick / place sheets are a read-out, not direction.** Core's sheet models
 (`lib/binloc_sheets.lib.php`, rendered by
 `core/modules/binloc/binloc_sheet_pdf.class.php`) only print recorded
-locations: an order sheet allocates from stock earliest-eat-by first and names
-the bins already assigned; "suggested" means the product already has a bin in
+locations: an order sheet allocates from stock in the pick priority order set
+up in binloc (`binloc_sheet_sort_candidates()`) and names the bins already
+assigned; "suggested" means the product already has a bin in
 that warehouse. Choosing a bin for stock that has none (putaway) or an optimal
 pick path belongs here. The row providers return plain rows
 (`binloc_sheet_row()`), so a WMS module can prefill `code`/`status` before
