@@ -259,9 +259,25 @@ function binloc_layout_import_run($db, $parsed, $user, $commit = false)
 		foreach ($data['levels'] as $lvl) {
 			$position++;
 			$match = isset($by_label[strtolower($lvl['label'])]) ? $by_label[strtolower($lvl['label'])] : null;
-			$action = $match ? (($match->datatype !== $lvl['type'] || $match->position != $position || !$match->active) ? 'update_level' : 'unchanged') : 'create_level';
+			$changes = array();
+			if ($match) {
+				if ($match->datatype !== $lvl['type']) {
+					$changes[] = array($langs->trans('Type'), $match->datatype, $lvl['type']);
+				}
+				if ($match->position != $position) {
+					$changes[] = array($langs->trans('CsvLevelPosition'), (string) $match->position, (string) $position);
+				}
+				if (!$match->active) {
+					$changes[] = array($langs->trans('Status'), $langs->trans('Disabled'), $langs->trans('Enabled'));
+				}
+				$action = $changes ? 'update_level' : 'unchanged';
+			} else {
+				$action = 'create_level';
+				$changes[] = array($langs->trans('Type'), '', $lvl['type']);
+				$changes[] = array($langs->trans('CsvLevelPosition'), '', (string) $position);
+			}
 			$report['counts'][$action]++;
-			$report['rows'][] = array('line' => $lvl['line'], 'warehouse' => $data['ref'], 'label' => $lvl['label'], 'action' => $action, 'detail' => $lvl['type'].' @'.$position);
+			$report['rows'][] = array('line' => $lvl['line'], 'ref' => $data['ref'], 'sub' => $lvl['label'], 'action' => $action, 'changes' => $action === 'unchanged' ? array() : $changes, 'detail' => $action === 'unchanged' ? $lvl['type'].', '.$langs->trans('CsvLevelPosition').' '.$position : '');
 			$apply_rows[] = array('id' => ($match ? $match->id : 0), 'label' => $lvl['label'], 'datatype' => $lvl['type'], 'position' => $position);
 			if ($match) {
 				$seen_ids[$match->id] = true;
@@ -272,7 +288,7 @@ function binloc_layout_import_run($db, $parsed, $user, $commit = false)
 			if (!isset($seen_ids[$id])) {
 				$position++;
 				$apply_rows[] = array('id' => $id, 'label' => $cfg->label, 'datatype' => $cfg->datatype, 'position' => $position);
-				$report['rows'][] = array('line' => 0, 'warehouse' => $data['ref'], 'label' => $cfg->label, 'action' => 'kept', 'detail' => $langs->trans('CsvLevelNotInFile'));
+				$report['rows'][] = array('line' => 0, 'ref' => $data['ref'], 'sub' => $cfg->label, 'action' => 'kept', 'changes' => array(), 'detail' => $langs->trans('CsvLevelNotInFile'));
 			}
 		}
 
@@ -303,6 +319,7 @@ function binloc_layout_import_run($db, $parsed, $user, $commit = false)
 				}
 			}
 			$pos = $match ? count($match->options) : 0;
+			$added = array();
 			foreach ($lvl['values'] as $value) {
 				if ($value === '' || isset($have[strtolower($value)])) {
 					continue;
@@ -310,7 +327,7 @@ function binloc_layout_import_run($db, $parsed, $user, $commit = false)
 				$have[strtolower($value)] = true;
 				$pos++;
 				$report['counts']['add_value']++;
-				$report['rows'][] = array('line' => $lvl['line'], 'warehouse' => $data['ref'], 'label' => $lvl['label'], 'action' => 'add_value', 'detail' => $value);
+				$added[] = $value;
 				if ($commit) {
 					$result = $optionObj->create($match->id, $value, $pos, $user);
 					if ($result < 0 && $result != -2) {
@@ -319,6 +336,10 @@ function binloc_layout_import_run($db, $parsed, $user, $commit = false)
 						return $report;
 					}
 				}
+			}
+			// One row per level, not per value: a letter range adds dozens at once
+			if ($added) {
+				$report['rows'][] = array('line' => $lvl['line'], 'ref' => $data['ref'], 'sub' => $lvl['label'], 'action' => 'add_value', 'changes' => array(array($langs->trans('CsvAllowedValues'), '', implode(', ', $added))), 'detail' => '');
 			}
 		}
 	}
@@ -381,14 +402,14 @@ function binloc_assign_export_lines($db, $fk_entrepot)
  * @param  bool   $create_missing Create unknown dropdown values instead of rejecting the row
  * @param  User   $user           User performing action
  * @param  bool   $commit         false = dry-run report only, true = apply in a transaction
- * @return array                  Report: rows[] {line, product, lot, action, detail},
- *                                errors[] strings, counts {create, update, clear, skip, value_add}
+ * @return array                  Report: rows[] {line, ref, sub, action, changes[], detail},
+ *                                errors[] strings, counts {create, update, clear, unchanged, skip, value_add}
  */
 function binloc_assign_import_run($db, $fk_entrepot, $parsed, $create_missing, $user, $commit = false)
 {
 	global $langs;
 
-	$report = array('rows' => array(), 'errors' => array(), 'counts' => array('create' => 0, 'update' => 0, 'clear' => 0, 'skip' => 0, 'value_add' => 0));
+	$report = array('rows' => array(), 'errors' => array(), 'counts' => array('create' => 0, 'update' => 0, 'clear' => 0, 'unchanged' => 0, 'skip' => 0, 'value_add' => 0));
 
 	$levelObj  = new BinlocWarehouseLevel($db);
 	$optionObj = new BinlocLevelOption($db);
@@ -479,6 +500,8 @@ function binloc_assign_import_run($db, $fk_entrepot, $parsed, $create_missing, $
 		if ($existing_id > 0) {
 			$loc->fetch($existing_id);
 		}
+		// What is saved now, to report field-by-field changes and skip no-op rows
+		$before = binloc_assign_snapshot($loc);
 		$loc->fk_product     = $fk_product;
 		$loc->fk_entrepot    = $fk_entrepot;
 		$loc->fk_product_lot = $fk_product_lot;
@@ -502,6 +525,7 @@ function binloc_assign_import_run($db, $fk_entrepot, $parsed, $create_missing, $
 				foreach ($cfg->options as $opt) {
 					if (strtolower($opt->value) === strtolower($value)) {
 						$opt_id = $opt->id;
+						$value = $opt->value; // the stored spelling, not the file's case
 						break;
 					}
 				}
@@ -513,7 +537,7 @@ function binloc_assign_import_run($db, $fk_entrepot, $parsed, $create_missing, $
 						break;
 					}
 					$report['counts']['value_add']++;
-					$report['rows'][] = array('line' => $line, 'product' => $product_ref, 'lot' => $lot_batch, 'action' => 'value_add', 'detail' => $cfg->label.': '.$value);
+					$report['rows'][] = array('line' => $line, 'ref' => $product_ref, 'sub' => $lot_batch, 'action' => 'value_add', 'changes' => array(array($cfg->label, '', $value)), 'detail' => '');
 					if ($commit) {
 						$opt_id = $optionObj->create($level_id, $value, count($cfg->options) + 1, $user);
 						if ($opt_id <= 0) {
@@ -550,11 +574,14 @@ function binloc_assign_import_run($db, $fk_entrepot, $parsed, $create_missing, $
 			continue;
 		}
 
-		// Decide the action
+		// Decide the action from what actually differs
+		$after = binloc_assign_snapshot($loc);
+		$changes = binloc_assign_diff($levels, $before, $after);
+
 		if (!$loc->hasValues()) {
 			if ($existing_id > 0) {
 				$report['counts']['clear']++;
-				$report['rows'][] = array('line' => $line, 'product' => $product_ref, 'lot' => $lot_batch, 'action' => 'clear', 'detail' => '');
+				$report['rows'][] = array('line' => $line, 'ref' => $product_ref, 'sub' => $lot_batch, 'action' => 'clear', 'changes' => binloc_assign_diff($levels, $before, array('values' => array(), 'note' => '')), 'detail' => '');
 				if ($commit) {
 					$loc->id = $existing_id;
 					if ($loc->delete($user) < 0) {
@@ -565,17 +592,20 @@ function binloc_assign_import_run($db, $fk_entrepot, $parsed, $create_missing, $
 				}
 			} else {
 				$report['counts']['skip']++;
+				$report['rows'][] = array('line' => $line, 'ref' => $product_ref, 'sub' => $lot_batch, 'action' => 'skip', 'changes' => array(), 'detail' => $langs->trans('CsvSkipNoBin'));
 			}
+			continue;
+		}
+
+		if ($existing_id > 0 && empty($changes)) {
+			$report['counts']['unchanged']++;
+			$report['rows'][] = array('line' => $line, 'ref' => $product_ref, 'sub' => $lot_batch, 'action' => 'unchanged', 'changes' => array(), 'detail' => binloc_assign_summary($levels, $after));
 			continue;
 		}
 
 		$action = ($existing_id > 0) ? 'update' : 'create';
 		$report['counts'][$action]++;
-		$parts = array();
-		foreach ($loc->values as $lid => $entry) {
-			$parts[] = (isset($levels[$lid]) ? $levels[$lid]->label : $lid).': '.$entry->display;
-		}
-		$report['rows'][] = array('line' => $line, 'product' => $product_ref, 'lot' => $lot_batch, 'action' => $action, 'detail' => implode(' / ', $parts));
+		$report['rows'][] = array('line' => $line, 'ref' => $product_ref, 'sub' => $lot_batch, 'action' => $action, 'changes' => $changes, 'detail' => '');
 
 		if ($commit) {
 			if ($loc->createOrUpdate($user) < 0) {
@@ -596,4 +626,71 @@ function binloc_assign_import_run($db, $fk_entrepot, $parsed, $create_missing, $
 	}
 
 	return $report;
+}
+
+/**
+ * Comparable picture of an assignment: level id => {key, display}, and note
+ *
+ * The key is the option rowid for dropdown levels and the raw value
+ * otherwise, so a file that spells "b" for option "B" is not a change.
+ *
+ * @param  BinlocProductLocation $loc Assignment (fetched, or being built)
+ * @return array{values:array<int,array{key:string,display:string}>,note:string}
+ */
+function binloc_assign_snapshot($loc)
+{
+	$values = array();
+	foreach ((array) $loc->values as $lid => $entry) {
+		$display = (string) $entry->display;
+		if ($display === '' && empty($entry->fk_option)) {
+			continue;
+		}
+		$key = !empty($entry->fk_option) && $entry->fk_option > 0 ? 'o'.$entry->fk_option : 'v'.$display;
+		$values[(int) $lid] = array('key' => $key, 'display' => $display);
+	}
+	return array('values' => $values, 'note' => trim((string) $loc->note));
+}
+
+/**
+ * Field-by-field differences between two assignment snapshots
+ *
+ * @param  array $levels Level configs of the warehouse (id => cfg), in position order
+ * @param  array $before From binloc_assign_snapshot()
+ * @param  array $after  From binloc_assign_snapshot()
+ * @return array<int,array{0:string,1:string,2:string}> [field, from, to]; '' = empty
+ */
+function binloc_assign_diff($levels, $before, $after)
+{
+	global $langs;
+
+	$changes = array();
+	foreach ($levels as $lid => $cfg) {
+		$b = isset($before['values'][$lid]) ? $before['values'][$lid] : null;
+		$a = isset($after['values'][$lid]) ? $after['values'][$lid] : null;
+		if (($b ? $b['key'] : '') !== ($a ? $a['key'] : '')) {
+			$changes[] = array($cfg->label, $b ? $b['display'] : '', $a ? $a['display'] : '');
+		}
+	}
+	if ($before['note'] !== $after['note']) {
+		$changes[] = array($langs->trans('Note'), $before['note'], $after['note']);
+	}
+	return $changes;
+}
+
+/**
+ * One-line "Level: value / Level: value" of a snapshot (for unchanged rows)
+ *
+ * @param  array $levels   Level configs of the warehouse (id => cfg)
+ * @param  array $snapshot From binloc_assign_snapshot()
+ * @return string
+ */
+function binloc_assign_summary($levels, $snapshot)
+{
+	$parts = array();
+	foreach ($levels as $lid => $cfg) {
+		if (isset($snapshot['values'][$lid])) {
+			$parts[] = $cfg->label.': '.$snapshot['values'][$lid]['display'];
+		}
+	}
+	return implode(' / ', $parts);
 }

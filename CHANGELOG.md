@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.19.0] - 2026-09-30
+
+### Added
+- **Imports report what actually changes.** Re-importing an assignments file compares every row with what is saved. A row with no differences is reported as *No change* and not written; before, every existing product was reported and rewritten as an update. Dropdown values are compared by the stored option, so `b` in the file matches a saved `B`; free-text levels stay case-sensitive.
+- **Field-by-field changes in the preview and result.** Each row shows what changes, as old (struck through) → **new**: a level's value, a note, a layout level's type, position or re-enabling. New allowed values are grouped into one row per level, so a letter range is one line instead of dozens.
+
+### Changed
+- **Import/Export page redesigned.** One card per data type (Warehouse layout, Bin assignments), each with numbered *Export* and *Edit and import* steps, captioned controls, and a collapsible *File format and import rules* panel with a table of the columns. The two warehouse pickers of the assignments card stay in sync, and export needs a warehouse chosen.
+- **Clearer preview and result.** A banner says what state the import is in and what to do next (preview, nothing to import, problems found, done, rolled back), with a count per kind of change. Only rows that change are listed; unchanged rows fold away. The card names the uploaded file, the confirm button says how many changes it writes, and a file with nothing to change or with errors offers only *Close*.
+
+### Fixed
+- **Binloc's stylesheet was not loaded on the Import/Export page**, so its card styling never applied.
+- **Browsers could keep an outdated binloc stylesheet or script after an upgrade.** The cache-busting version was fixed at 2.16.0; it now follows the files' change time.
+
 ## [2.18.0] - 2026-09-30
 
 ### Added

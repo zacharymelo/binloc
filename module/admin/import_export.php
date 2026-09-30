@@ -54,6 +54,16 @@ function binloc_ie_store_upload($tempdir)
 }
 
 /**
+ * The uploaded file's own name, for showing which file a preview is of
+ *
+ * @return string
+ */
+function binloc_ie_upload_name()
+{
+	return empty($_FILES['csvfile']['name']) ? '' : dol_sanitizeFileName(basename($_FILES['csvfile']['name']));
+}
+
+/**
  * Validate a stored-upload token and return its path
  *
  * @param  string $tempdir Temp directory
@@ -70,58 +80,190 @@ function binloc_ie_token_path($tempdir, $token)
 }
 
 /**
- * Render an import report (summary counts, errors, planned/applied actions)
+ * Actions that write something (the rest are informational)
  *
- * @param  array $report  Report from a binloc_*_import_run() call
- * @param  bool  $applied true when the report is the result of an apply
- * @return void
+ * @return string[]
  */
-function binloc_ie_print_report($report, $applied)
+function binloc_ie_change_actions()
+{
+	return array('create', 'update', 'clear', 'value_add', 'create_level', 'update_level', 'add_value');
+}
+
+/**
+ * Number of rows/values an import report would write (or wrote)
+ *
+ * @param  array $report Report from a binloc_*_import_run() call
+ * @return int
+ */
+function binloc_ie_change_count($report)
+{
+	$n = 0;
+	foreach (binloc_ie_change_actions() as $action) {
+		$n += isset($report['counts'][$action]) ? (int) $report['counts'][$action] : 0;
+	}
+	return $n;
+}
+
+/**
+ * Badge for a report row action: the theme's semantic colours plus a word,
+ * so the meaning never rests on colour alone
+ *
+ * @param  string $action Row action
+ * @return string         HTML
+ */
+function binloc_ie_badge($action)
 {
 	global $langs;
 
-	$parts = array();
-	foreach ($report['counts'] as $k => $v) {
-		if ($v > 0) {
-			$parts[] = $langs->trans('CsvCount'.$k).': '.$v;
+	$styles = array(
+		'create' => 'success', 'create_level' => 'success',
+		'update' => 'warning', 'update_level' => 'warning',
+		'clear' => 'danger',
+		'value_add' => 'primary', 'add_value' => 'primary',
+	);
+	$style = isset($styles[$action]) ? $styles[$action] : 'secondary';
+	return '<span class="badge badge-'.$style.' binloc-ie-badge">'.dol_escape_htmltag($langs->trans('CsvAction'.$action)).'</span>';
+}
+
+/**
+ * Render a row's field changes: "Field: old → new", one per line
+ *
+ * @param  array $changes [field, from, to] triples ('' = empty)
+ * @return string         HTML
+ */
+function binloc_ie_changes_html($changes)
+{
+	$out = array();
+	foreach ($changes as $c) {
+		list($field, $from, $to) = $c;
+		$html = '<span class="binloc-ie-field">'.dol_escape_htmltag($field).'</span> ';
+		if ($from !== '' && $to !== '') {
+			$html .= '<span class="binloc-ie-old">'.dol_escape_htmltag($from).'</span> <span class="binloc-ie-arrow">→</span> <span class="binloc-ie-new">'.dol_escape_htmltag($to).'</span>';
+		} elseif ($to !== '') {
+			$html .= '<span class="binloc-ie-new">'.dol_escape_htmltag($to).'</span>';
+		} else {
+			$html .= '<span class="binloc-ie-old">'.dol_escape_htmltag($from).'</span>';
+		}
+		$out[] = '<div>'.$html.'</div>';
+	}
+	return implode('', $out);
+}
+
+/**
+ * Print report rows as a table
+ *
+ * @param  array  $rows Report rows
+ * @param  string $kind 'layout' or 'assign'
+ * @param  int    $max  Rows shown before "… +N more"
+ * @return void
+ */
+function binloc_ie_print_rows($rows, $kind, $max = 300)
+{
+	global $langs;
+
+	print '<table class="noborder centpercent binloc-ie-report">';
+	print '<tr class="liste_titre">';
+	print '<td class="width50">'.$langs->trans('CsvFileLine').'</td>';
+	print '<td>'.$langs->trans($kind === 'layout' ? 'Warehouse' : 'CsvColProduct').'</td>';
+	print '<td>'.$langs->trans($kind === 'layout' ? 'CsvLevel' : 'CsvColLot').'</td>';
+	print '<td>'.$langs->trans('CsvWhat').'</td>';
+	print '<td>'.$langs->trans('CsvDetails').'</td>';
+	print '</tr>';
+	foreach (array_slice($rows, 0, $max) as $row) {
+		print '<tr class="oddeven">';
+		print '<td class="opacitymedium">'.($row['line'] ?: '—').'</td>';
+		print '<td class="nowraponall">'.dol_escape_htmltag($row['ref']).'</td>';
+		print '<td class="nowraponall">'.dol_escape_htmltag($row['sub']).'</td>';
+		print '<td class="nowraponall">'.binloc_ie_badge($row['action']).'</td>';
+		print '<td>'.(!empty($row['changes']) ? binloc_ie_changes_html($row['changes']) : '<span class="opacitymedium">'.dol_escape_htmltag($row['detail']).'</span>').'</td>';
+		print '</tr>';
+	}
+	if (count($rows) > $max) {
+		print '<tr class="oddeven"><td colspan="5" class="opacitymedium">'.$langs->trans('CsvMoreRows', count($rows) - $max).'</td></tr>';
+	}
+	print '</table>';
+}
+
+/**
+ * Render an import report: what state it is in, a count per kind of change,
+ * the problems, the rows that change, and the rows that don't (folded away)
+ *
+ * @param  array  $report Report from a binloc_*_import_run() call
+ * @param  string $kind   'layout' or 'assign'
+ * @param  bool   $applied true when the report is the result of an apply
+ * @return void
+ */
+function binloc_ie_print_report($report, $kind, $applied)
+{
+	global $langs;
+
+	$errors = $report['errors'];
+	$n_changes = binloc_ie_change_count($report);
+
+	// State banner: one sentence saying what happened and what to do next
+	if (!empty($errors)) {
+		$class = 'error';
+		$text = $langs->trans($applied ? 'CsvStateFailed' : 'CsvStateErrors', count($errors));
+	} elseif ($applied) {
+		$class = 'ok';
+		$text = $n_changes ? $langs->trans('CsvStateApplied', $n_changes) : $langs->trans('CsvStateNothingApplied');
+	} elseif ($n_changes) {
+		$class = 'info';
+		$text = $langs->trans('CsvStatePreview', $n_changes);
+	} else {
+		$class = 'info';
+		$text = $langs->trans('CsvStateNoChanges');
+	}
+	print '<div class="'.$class.' binloc-ie-state">'.$text.'</div>';
+
+	// A count per kind of change, as the same badges the table uses
+	$chips = array();
+	foreach ($report['counts'] as $action => $n) {
+		if ($n > 0) {
+			$chips[] = '<span class="binloc-ie-chip">'.binloc_ie_badge($action).' <b>'.((int) $n).'</b> '.dol_escape_htmltag($langs->trans('CsvCount'.$action)).'</span>';
 		}
 	}
-	print '<div class="'.($applied ? 'ok' : 'info').' marginbottomonly">';
-	print $applied ? $langs->trans('CsvImportApplied') : $langs->trans('CsvImportPreview');
-	print ($parts ? ' — '.implode(', ', $parts) : '');
-	print '</div>';
+	if ($chips) {
+		print '<div class="binloc-ie-chips">'.implode('', $chips).'</div>';
+	}
 
-	if (!empty($report['errors'])) {
-		print '<div class="error marginbottomonly">';
-		foreach (array_slice($report['errors'], 0, 50) as $err) {
-			print dol_escape_htmltag($err).'<br>';
+	if (!empty($errors)) {
+		print '<div class="binloc-ie-errors">';
+		print '<div class="binloc-ie-subtitle">'.$langs->trans('CsvProblems').'</div>';
+		print '<ul>';
+		foreach (array_slice($errors, 0, 50) as $err) {
+			print '<li>'.dol_escape_htmltag($err).'</li>';
 		}
-		if (count($report['errors']) > 50) {
-			print '… +'.(count($report['errors']) - 50);
+		if (count($errors) > 50) {
+			print '<li class="opacitymedium">'.$langs->trans('CsvMoreRows', count($errors) - 50).'</li>';
 		}
+		print '</ul>';
 		print '</div>';
 	}
 
-	if (!empty($report['rows'])) {
-		print '<table class="noborder centpercent marginbottomonly">';
-		print '<tr class="liste_titre">';
-		print '<td>'.$langs->trans('Line').'</td><td>'.$langs->trans('Ref').'</td><td>'.$langs->trans('Action').'</td><td>'.$langs->trans('Details').'</td>';
-		print '</tr>';
-		foreach (array_slice($report['rows'], 0, 200) as $row) {
-			print '<tr class="oddeven">';
-			print '<td>'.($row['line'] ?: '').'</td>';
-			$ref = isset($row['product']) ? $row['product'].(!empty($row['lot']) ? ' ('.$row['lot'].')' : '') : (isset($row['warehouse']) ? $row['warehouse'].' / '.$row['label'] : '');
-			print '<td>'.dol_escape_htmltag($ref).'</td>';
-			print '<td>'.dol_escape_htmltag($langs->trans('CsvAction'.$row['action'])).'</td>';
-			print '<td>'.dol_escape_htmltag($row['detail']).'</td>';
-			print '</tr>';
+	$changed = array();
+	$quiet = array();
+	foreach ($report['rows'] as $row) {
+		if (in_array($row['action'], binloc_ie_change_actions(), true)) {
+			$changed[] = $row;
+		} else {
+			$quiet[] = $row;
 		}
-		if (count($report['rows']) > 200) {
-			print '<tr class="oddeven"><td colspan="4" class="opacitymedium">… +'.(count($report['rows']) - 200).'</td></tr>';
-		}
-		print '</table>';
+	}
+
+	if ($changed) {
+		print '<div class="binloc-ie-subtitle">'.$langs->trans($applied ? 'CsvChangesWritten' : 'CsvChangesToWrite').'</div>';
+		binloc_ie_print_rows($changed, $kind);
+	}
+	if ($quiet) {
+		// Unfolded only when they are the whole story (no changes, no problems)
+		print '<details class="binloc-ie-quiet"'.($changed || $errors ? '' : ' open').'>';
+		print '<summary>'.$langs->trans('CsvQuietRows', count($quiet)).'</summary>';
+		binloc_ie_print_rows($quiet, $kind);
+		print '</details>';
 	}
 }
+
 
 // ---- Export actions (GET, read permission) ----
 
@@ -144,7 +286,7 @@ if ($action === 'preview_layout' && $can_admin) {
 	if (!$parsed) {
 		setEventMessages($langs->trans('CsvUploadFailed'), null, 'errors');
 	} else {
-		$preview = array('kind' => 'layout', 'report' => binloc_layout_import_run($db, $parsed, $user, false), 'token' => $token, 'fk_entrepot' => 0, 'create_missing' => 0);
+		$preview = array('kind' => 'layout', 'report' => binloc_layout_import_run($db, $parsed, $user, false), 'token' => $token, 'filename' => binloc_ie_upload_name(), 'fk_entrepot' => 0, 'create_missing' => 0);
 	}
 }
 
@@ -172,7 +314,7 @@ if ($action === 'preview_assign' && $can_write && $fk_entrepot > 0) {
 	if (!$parsed) {
 		setEventMessages($langs->trans('CsvUploadFailed'), null, 'errors');
 	} else {
-		$preview = array('kind' => 'assign', 'report' => binloc_assign_import_run($db, $fk_entrepot, $parsed, $create_missing, $user, false), 'token' => $token, 'fk_entrepot' => $fk_entrepot, 'create_missing' => $create_missing);
+		$preview = array('kind' => 'assign', 'report' => binloc_assign_import_run($db, $fk_entrepot, $parsed, $create_missing, $user, false), 'token' => $token, 'filename' => binloc_ie_upload_name(), 'fk_entrepot' => $fk_entrepot, 'create_missing' => $create_missing);
 	}
 }
 
@@ -196,82 +338,223 @@ if ($action === 'apply_assign' && $can_write && $fk_entrepot > 0) {
 
 // ---- VIEW ----
 
+/**
+ * Print one numbered step box (Export / Import) of a section card
+ *
+ * @param  int    $num   Step number
+ * @param  string $title Step title
+ * @param  string $hint  One-line explanation under the title
+ * @param  string $body  Controls (HTML)
+ * @return void
+ */
+function binloc_ie_step($num, $title, $hint, $body)
+{
+	print '<div class="binloc-ie-step">';
+	print '<div class="binloc-ie-step-head"><span class="binloc-ie-step-num">'.((int) $num).'</span>'.$title.'</div>';
+	print '<div class="binloc-ie-step-hint">'.$hint.'</div>';
+	print '<div class="binloc-ie-step-body">'.$body.'</div>';
+	print '</div>';
+}
+
+/**
+ * Print the collapsible "file format and import rules" panel of a section
+ *
+ * @param  array<string,string> $columns Column name => what it holds
+ * @param  string[]             $rules   Import rules, one per bullet
+ * @return void
+ */
+function binloc_ie_format($columns, $rules)
+{
+	global $langs;
+
+	print '<details class="binloc-ie-format">';
+	print '<summary>'.$langs->trans('CsvFormatAndRules').'</summary>';
+	print '<div class="binloc-ie-format-body">';
+	print '<table class="noborder binloc-ie-columns">';
+	print '<tr class="liste_titre"><td>'.$langs->trans('CsvColumn').'</td><td>'.$langs->trans('CsvColumnMeaning').'</td></tr>';
+	foreach ($columns as $name => $meaning) {
+		print '<tr class="oddeven"><td class="nowraponall"><code>'.$name.'</code></td><td>'.$meaning.'</td></tr>';
+	}
+	print '</table>';
+	print '<div class="binloc-ie-rules">';
+	print '<div class="binloc-ie-rules-title">'.$langs->trans('CsvRules').'</div>';
+	print '<ul>';
+	foreach ($rules as $rule) {
+		print '<li>'.$rule.'</li>';
+	}
+	print '</ul>';
+	print '</div>';
+	print '</div>';
+	print '</details>';
+}
+
+/**
+ * A control with a small caption above it (the labels page's field style)
+ *
+ * @param  string $caption Caption text (escaped)
+ * @param  string $control Control HTML
+ * @return string
+ */
+function binloc_ie_field($caption, $control)
+{
+	return '<label class="binloc-field"><span class="binloc-field-caption">'.$caption.'</span>'.$control.'</label>';
+}
+
 $page_name = 'BinlocSetup';
 llxHeader('', $langs->trans($page_name), binloc_help_url());
+binloc_print_assets();
 
 $head = binloc_admin_prepare_head();
 print dol_get_fiche_head($head, 'importexport', $langs->trans($page_name), -1, 'stock');
 
-print '<div class="opacitymedium marginbottomonly">'.$langs->trans('CsvPageDesc').'</div>';
+print '<p class="binloc-intro">'.$langs->trans('CsvPageDesc').'</p>';
 
-// Pending preview: show report + confirm button
-if ($preview !== null) {
-	binloc_ie_print_report($preview['report'], false);
+$wh_refs = array();
+foreach (binloc_get_warehouses($db) as $wh) {
+	$wh_refs[(int) $wh->rowid] = $wh->ref;
+}
+$section_titles = array('layout' => $langs->transnoentitiesnoconv('CsvLayoutSection'), 'assign' => $langs->transnoentitiesnoconv('CsvAssignSection')); // raw: trans() encodes its parameters
 
-	$has_errors = !empty($preview['report']['errors']);
-	if ($has_errors) {
-		print '<div class="warning marginbottomonly">'.$langs->trans('CsvFixErrorsFirst').'</div>';
-	} else {
-		print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'" class="marginbottomonly">';
+// Pending preview or applied result: its own card above the sections, named
+// after the section (and warehouse) and file it came from
+$result_kind = $preview !== null ? $preview['kind'] : $applied_kind;
+if ($preview !== null || $applied_report !== null) {
+	$report = $preview !== null ? $preview['report'] : $applied_report;
+	$wh_id = $preview !== null ? (int) $preview['fk_entrepot'] : $fk_entrepot;
+	$title = $langs->trans($preview !== null ? 'CsvPreviewOf' : 'CsvResultOf', $section_titles[$result_kind]);
+	if ($result_kind === 'assign' && isset($wh_refs[$wh_id])) {
+		$title .= ' · '.dol_escape_htmltag($wh_refs[$wh_id]);
+	}
+	$filename = $preview !== null ? $preview['filename'] : GETPOST('csvname', 'alphanohtml');
+	$n_changes = binloc_ie_change_count($report);
+
+	print '<div class="binloc-card binloc-ie-card binloc-ie-result">';
+	print '<div class="binloc-ie-card-head">';
+	print '<div class="binloc-ie-card-title">'.$title.'</div>';
+	if ($filename !== '') {
+		print '<div class="binloc-ie-card-sub">'.$langs->trans('CsvFromFile', dol_escape_htmltag($filename)).'</div>';
+	}
+	print '</div>';
+	print '<div class="binloc-ie-result-body">';
+	binloc_ie_print_report($report, $result_kind, $preview === null);
+
+	print '<div class="binloc-ie-result-actions">';
+	if ($preview !== null && empty($report['errors']) && $n_changes > 0) {
+		print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'">';
 		print '<input type="hidden" name="token" value="'.newToken().'">';
 		print '<input type="hidden" name="action" value="apply_'.$preview['kind'].'">';
 		print '<input type="hidden" name="csvtoken" value="'.dol_escape_htmltag($preview['token']).'">';
+		print '<input type="hidden" name="csvname" value="'.dol_escape_htmltag($filename).'">';
 		print '<input type="hidden" name="fk_entrepot" value="'.(int) $preview['fk_entrepot'].'">';
 		print '<input type="hidden" name="create_missing" value="'.(int) $preview['create_missing'].'">';
-		print '<input type="submit" class="button" value="'.dol_escape_htmltag($langs->trans('CsvConfirmImport')).'">';
+		print '<input type="submit" class="button" value="'.dol_escape_htmltag($langs->trans('CsvConfirmImportN', $n_changes)).'">';
 		print ' <a href="'.$_SERVER['PHP_SELF'].'" class="button button-cancel">'.$langs->trans('Cancel').'</a>';
 		print '</form>';
+	} else {
+		print '<a href="'.$_SERVER['PHP_SELF'].'" class="button">'.$langs->trans($preview !== null ? 'CsvClose' : 'CsvDone').'</a>';
 	}
-	print '<hr>';
+	print '</div>';
+	print '</div>';
+	print '</div>';
 }
 
-// Result of an apply
-if ($applied_report !== null) {
-	binloc_ie_print_report($applied_report, empty($applied_report['errors']));
-	print '<hr>';
-}
+$file_input = '<input type="file" name="csvfile" accept=".csv,text/csv" required>';
+$no_right = '<span class="opacitymedium">%s</span>';
 
 // ---- Layout section ----
-print '<div class="binloc-card">';
-print '<div class="binloc-card-title">'.$langs->trans('CsvLayoutSection').'</div>';
-print '<div class="opacitymedium small marginbottomonly">'.$langs->trans('CsvLayoutDesc').'</div>';
-
-print '<div class="marginbottomonly">';
-print '<a href="'.$_SERVER['PHP_SELF'].'?action=export_layout" class="button smallpaddingimp">'.$langs->trans('CsvExportAllLayouts').'</a>';
+print '<div class="binloc-card binloc-ie-card">';
+print '<div class="binloc-ie-card-head">';
+print '<div class="binloc-ie-card-title">'.$langs->trans('CsvLayoutSection').'</div>';
+print '<div class="binloc-ie-card-sub">'.$langs->trans('CsvLayoutSub').'</div>';
 print '</div>';
 
+print '<div class="binloc-ie-steps">';
+binloc_ie_step(1, $langs->trans('CsvStepExport'), $langs->trans('CsvLayoutExportHint'),
+	'<form method="GET" action="'.$_SERVER['PHP_SELF'].'" class="binloc-ie-form"><input type="hidden" name="action" value="export_layout"><input type="submit" class="button smallpaddingimp" value="'.dol_escape_htmltag($langs->trans('CsvExportAllLayouts')).'"></form>');
 if ($can_admin) {
-	print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'" enctype="multipart/form-data">';
-	print '<input type="hidden" name="token" value="'.newToken().'">';
-	print '<input type="hidden" name="action" value="preview_layout">';
-	print '<input type="file" name="csvfile" accept=".csv,text/csv" required>';
-	print ' <input type="submit" class="button smallpaddingimp" value="'.dol_escape_htmltag($langs->trans('CsvPreviewImport')).'">';
-	print '</form>';
+	$body = '<form method="POST" action="'.$_SERVER['PHP_SELF'].'" enctype="multipart/form-data" class="binloc-ie-form">';
+	$body .= '<input type="hidden" name="token" value="'.newToken().'">';
+	$body .= '<input type="hidden" name="action" value="preview_layout">';
+	$body .= binloc_ie_field($langs->trans('CsvFile'), $file_input);
+	$body .= '<input type="submit" class="button smallpaddingimp" value="'.dol_escape_htmltag($langs->trans('CsvPreviewImport')).'">';
+	$body .= '</form>';
+} else {
+	$body = sprintf($no_right, $langs->trans('CsvNeedsAdminRight'));
 }
+binloc_ie_step(2, $langs->trans('CsvStepImport'), $langs->trans('CsvImportHint'), $body);
+print '</div>';
+
+binloc_ie_format(
+	array(
+		'warehouse'      => $langs->trans('CsvColLayoutWarehouse'),
+		'level'          => $langs->trans('CsvColLayoutLevel'),
+		'label'          => $langs->trans('CsvColLayoutLabel'),
+		'type'           => $langs->trans('CsvColLayoutType'),
+		'allowed_values' => $langs->trans('CsvColLayoutValues'),
+	),
+	array(
+		$langs->trans('CsvRuleLayoutMatch'),
+		$langs->trans('CsvRuleLayoutNoDelete'),
+		$langs->trans('CsvRuleLayoutRight'),
+	)
+);
 print '</div>';
 
 // ---- Assignments section ----
-print '<div class="binloc-card">';
-print '<div class="binloc-card-title">'.$langs->trans('CsvAssignSection').'</div>';
-print '<div class="opacitymedium small marginbottomonly">'.$langs->trans('CsvAssignDesc').'</div>';
-
-print '<form method="GET" action="'.$_SERVER['PHP_SELF'].'" class="marginbottomonly">';
-print '<input type="hidden" name="action" value="export_assign">';
-print binloc_render_warehouse_select($db, 'fk_entrepot', $fk_entrepot);
-print ' <input type="submit" class="button smallpaddingimp" value="'.dol_escape_htmltag($langs->trans('CsvExportAssignments')).'">';
-print '</form>';
-
-if ($can_write) {
-	print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'" enctype="multipart/form-data">';
-	print '<input type="hidden" name="token" value="'.newToken().'">';
-	print '<input type="hidden" name="action" value="preview_assign">';
-	print binloc_render_warehouse_select($db, 'fk_entrepot', $fk_entrepot);
-	print ' <input type="file" name="csvfile" accept=".csv,text/csv" required>';
-	print ' <label><input type="checkbox" name="create_missing" value="1"> '.$langs->trans('CsvCreateMissingValues').'</label>';
-	print ' <input type="submit" class="button smallpaddingimp" value="'.dol_escape_htmltag($langs->trans('CsvPreviewImport')).'">';
-	print '</form>';
-}
+print '<div class="binloc-card binloc-ie-card">';
+print '<div class="binloc-ie-card-head">';
+print '<div class="binloc-ie-card-title">'.$langs->trans('CsvAssignSection').'</div>';
+print '<div class="binloc-ie-card-sub">'.$langs->trans('CsvAssignSub').'</div>';
 print '</div>';
+
+// Both steps pick a warehouse; the two selects mirror each other
+$wh_attrs = 'required data-binloc-wh-sync="1"';
+print '<div class="binloc-ie-steps">';
+$body = '<form method="GET" action="'.$_SERVER['PHP_SELF'].'" class="binloc-ie-form">';
+$body .= '<input type="hidden" name="action" value="export_assign">';
+$body .= binloc_ie_field($langs->trans('Warehouse'), binloc_render_warehouse_select($db, 'fk_entrepot', $fk_entrepot, 'flat minwidth200', $wh_attrs));
+$body .= '<input type="submit" class="button smallpaddingimp" value="'.dol_escape_htmltag($langs->trans('CsvExportAssignments')).'">';
+$body .= '</form>';
+binloc_ie_step(1, $langs->trans('CsvStepExport'), $langs->trans('CsvAssignExportHint'), $body);
+if ($can_write) {
+	$body = '<form method="POST" action="'.$_SERVER['PHP_SELF'].'" enctype="multipart/form-data" class="binloc-ie-form">';
+	$body .= '<input type="hidden" name="token" value="'.newToken().'">';
+	$body .= '<input type="hidden" name="action" value="preview_assign">';
+	$body .= binloc_ie_field($langs->trans('Warehouse'), binloc_render_warehouse_select($db, 'fk_entrepot', $fk_entrepot, 'flat minwidth200', $wh_attrs));
+	$body .= binloc_ie_field($langs->trans('CsvFile'), $file_input);
+	$body .= '<label class="binloc-check"><input type="checkbox" name="create_missing" value="1"> '.$langs->trans('CsvCreateMissingValues').'</label>';
+	$body .= '<input type="submit" class="button smallpaddingimp" value="'.dol_escape_htmltag($langs->trans('CsvPreviewImport')).'">';
+	$body .= '</form>';
+} else {
+	$body = sprintf($no_right, $langs->trans('CsvNeedsWriteRight'));
+}
+binloc_ie_step(2, $langs->trans('CsvStepImport'), $langs->trans('CsvImportHint'), $body);
+print '</div>';
+
+binloc_ie_format(
+	array(
+		'product'         => $langs->trans('CsvColAssignProduct'),
+		'product_label'   => $langs->trans('CsvColAssignLabel'),
+		'lot'             => $langs->trans('CsvColAssignLot'),
+		'&lt;'.dol_escape_htmltag($langs->trans('CsvColAssignLevelName')).'&gt;' => $langs->trans('CsvColAssignLevel'),
+		'note'            => $langs->trans('CsvColAssignNote'),
+	),
+	array(
+		$langs->trans('CsvRuleAssignWarehouse'),
+		$langs->trans('CsvRuleAssignMatch'),
+		$langs->trans('CsvRuleAssignClear'),
+		$langs->trans('CsvRuleAssignValues'),
+		$langs->trans('CsvRuleAssignRight'),
+	)
+);
+print '</div>';
+
+print '<script>';
+print 'jQuery(function ($) {';
+print '	var $wh = $("select[data-binloc-wh-sync]");';
+print '	$wh.on("change", function () { $wh.not(this).val($(this).val()); });';
+print '});';
+print '</script>';
 
 print dol_get_fiche_end();
 llxFooter();

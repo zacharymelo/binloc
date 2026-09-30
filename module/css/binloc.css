@@ -485,3 +485,227 @@
 .binloc-chip b {
 	font-family: monospace;
 }
+
+/* ---- Import / export page: one card per data type, numbered steps, a
+   collapsible format reference ---- */
+
+.binloc-ie-card {
+	padding: 0;
+	margin-bottom: 20px;
+	border-radius: 6px;
+	background: transparent;
+	overflow: hidden;
+}
+
+.binloc-ie-card-head {
+	padding: 12px 18px;
+	border-bottom: 1px solid var(--bordercolor, rgba(0, 0, 0, 0.15));
+	background: var(--colorbacktitle1, rgba(0, 0, 0, 0.04));
+}
+
+.binloc-ie-card-title {
+	font-size: 1.15em;
+	font-weight: bold;
+}
+
+.binloc-ie-card-sub {
+	margin-top: 3px;
+	opacity: 0.7;
+}
+
+.binloc-ie-result-body {
+	padding: 14px 18px 16px;
+}
+
+.binloc-ie-result-body > .info,
+.binloc-ie-result-body > .ok,
+.binloc-ie-result-body > .error {
+	margin: 0 0 12px;
+}
+
+.binloc-ie-chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px 18px;
+	margin-bottom: 14px;
+}
+
+.binloc-ie-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	white-space: nowrap;
+}
+
+.binloc-ie-badge {
+	min-width: 5.5em;
+	text-align: center;
+}
+
+.binloc-ie-subtitle {
+	font-weight: bold;
+	margin: 14px 0 6px;
+}
+
+.binloc-ie-errors ul {
+	margin: 0 0 8px;
+	padding-left: 1.2em;
+}
+
+.binloc-ie-errors li {
+	margin-bottom: 3px;
+}
+
+.binloc-ie-report {
+	margin: 0;
+}
+
+.binloc-ie-report td {
+	vertical-align: top;
+}
+
+.binloc-ie-field {
+	opacity: 0.7;
+}
+
+.binloc-ie-field::after {
+	content: ":";
+}
+
+.binloc-ie-old {
+	text-decoration: line-through;
+	opacity: 0.6;
+}
+
+.binloc-ie-arrow {
+	opacity: 0.5;
+	padding: 0 2px;
+}
+
+.binloc-ie-new {
+	font-weight: bold;
+}
+
+.binloc-ie-quiet {
+	margin-top: 14px;
+}
+
+.binloc-ie-quiet > summary {
+	cursor: pointer;
+	padding: 6px 0;
+	opacity: 0.8;
+	user-select: none;
+}
+
+.binloc-ie-result-actions {
+	margin-top: 16px;
+	display: flex;
+	gap: 8px;
+}
+
+.binloc-ie-steps {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+	gap: 16px;
+	padding: 16px 18px;
+}
+
+.binloc-ie-step {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	padding: 12px 14px 14px;
+	border: 1px solid var(--bordercolor, rgba(0, 0, 0, 0.15));
+	border-radius: 6px;
+	background: var(--colorbacklineimpair2, transparent);
+}
+
+.binloc-ie-step-head {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	font-weight: bold;
+}
+
+.binloc-ie-step-num {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 1.6em;
+	height: 1.6em;
+	border-radius: 50%;
+	font-size: 0.9em;
+	background: var(--butactionbg, #444);
+	color: var(--textbutaction, #fff);
+}
+
+.binloc-ie-step-hint {
+	opacity: 0.7;
+	font-size: 0.92em;
+}
+
+.binloc-ie-step-body {
+	margin-top: 6px;
+}
+
+.binloc-ie-form {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: flex-end;
+	gap: 10px 14px;
+}
+
+.binloc-ie-form input[type="file"] {
+	max-width: 100%;
+}
+
+.binloc-ie-format {
+	border-top: 1px solid var(--bordercolor, rgba(0, 0, 0, 0.15));
+}
+
+.binloc-ie-format > summary {
+	padding: 10px 18px;
+	cursor: pointer;
+	font-weight: bold;
+	user-select: none;
+}
+
+.binloc-ie-format > summary:hover {
+	background: var(--colorbacklinepairhover, rgba(0, 0, 0, 0.03));
+}
+
+.binloc-ie-format-body {
+	display: grid;
+	grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+	gap: 16px 24px;
+	padding: 0 18px 16px;
+}
+
+@media (max-width: 900px) {
+	.binloc-ie-format-body {
+		grid-template-columns: minmax(0, 1fr);
+	}
+}
+
+.binloc-ie-columns {
+	width: 100%;
+	margin: 0;
+}
+
+.binloc-ie-columns td:first-child {
+	width: 1%;
+}
+
+.binloc-ie-rules-title {
+	font-weight: bold;
+	margin-bottom: 4px;
+}
+
+.binloc-ie-rules ul {
+	margin: 0;
+	padding-left: 1.2em;
+}
+
+.binloc-ie-rules li {
+	margin-bottom: 6px;
+}

@@ -64,7 +64,9 @@ function binloc_print_assets()
 	}
 	$printed = true;
 
-	$v = '2.16.0';
+	// Cache-bust on the files' own change time, so a file-only upgrade never
+	// serves a stale stylesheet or script
+	$v = max((int) @filemtime(dol_buildpath('/binloc/css/binloc.css', 0)), (int) @filemtime(dol_buildpath('/binloc/js/binloc.js', 0)));
 	print '<link rel="stylesheet" href="'.dol_buildpath('/binloc/css/binloc.css', 1).'?v='.$v.'">'."\n";
 	print '<script src="'.dol_buildpath('/binloc/js/binloc.js', 1).'?v='.$v.'"></script>'."\n";
 	print '<script>Binloc.init({ajaxBase: "'.dol_escape_js(dol_buildpath('/binloc/ajax/', 1)).'", token: "'.newToken().'"});</script>'."\n";
