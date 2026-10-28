@@ -26,7 +26,7 @@ class modBinloc extends DolibarrModules
 	{
 		parent::__construct($db);
 
-		$this->numero        = 530100;
+		$this->numero        = 194285;
 		$this->rights_class  = 'binloc';
 		$this->family        = 'products';
 		$this->module_position = 501;
@@ -34,7 +34,7 @@ class modBinloc extends DolibarrModules
 		$this->description   = 'Track product locations within warehouses using configurable bin/shelf/row levels';
 		$this->descriptionlong = 'Each warehouse defines its own location hierarchy (e.g. Row/Bay/Shelf/Bin or Case/Drawer/Bin). Products can have different location coordinates in each warehouse they occupy. Includes bulk assignment, per-warehouse and per-product views.';
 		$this->editor_name   = 'Zachary Melo';
-		$this->version       = '2.19.1';
+		$this->version       = '2.20.0';
 		$this->const_name    = 'MAIN_MODULE_BINLOC';
 		$this->picto         = 'stock';
 
@@ -89,21 +89,21 @@ class modBinloc extends DolibarrModules
 		$r = 0;
 
 		$r++;
-		$this->rights[$r][0] = 530101;
+		$this->rights[$r][0] = $this->numero.'01';
 		$this->rights[$r][1] = 'Read bin locations';
 		$this->rights[$r][2] = 'r';
 		$this->rights[$r][3] = 1;
 		$this->rights[$r][4] = 'read';
 
 		$r++;
-		$this->rights[$r][0] = 530102;
+		$this->rights[$r][0] = $this->numero.'02';
 		$this->rights[$r][1] = 'Create/modify bin locations';
 		$this->rights[$r][2] = 'w';
 		$this->rights[$r][3] = 0;
 		$this->rights[$r][4] = 'write';
 
 		$r++;
-		$this->rights[$r][0] = 530103;
+		$this->rights[$r][0] = $this->numero.'03';
 		$this->rights[$r][1] = 'Configure warehouse levels';
 		$this->rights[$r][2] = 'a';
 		$this->rights[$r][3] = 0;
@@ -184,6 +184,8 @@ class modBinloc extends DolibarrModules
 		dol_include_once('/binloc/lib/binloc.lib.php');
 		binloc_ensure_warehouse_code_extrafield($this->db);
 
+		$this->migratePermissionIds();
+
 		$this->delete_menus();
 
 		$result = $this->_init(array(), $options);
@@ -204,6 +206,25 @@ class modBinloc extends DolibarrModules
 		}
 
 		return $result;
+	}
+
+	/**
+	 * Carry permissions granted under the pre-2.20.0 IDs (module 530100) over
+	 * to the IDs derived from the current module number, so users and groups
+	 * keep their access after the module ID change.
+	 *
+	 * @return void
+	 */
+	private function migratePermissionIds()
+	{
+		$map = array(530101 => 1, 530102 => 2, 530103 => 3);
+		foreach ($map as $oldid => $r) {
+			$newid = (int) $this->rights[$r][0];
+			foreach (array('user_rights', 'usergroup_rights') as $table) {
+				$this->db->query("UPDATE ".MAIN_DB_PREFIX.$table." SET fk_id = ".$newid." WHERE fk_id = ".((int) $oldid));
+			}
+			$this->db->query("DELETE FROM ".MAIN_DB_PREFIX."rights_def WHERE id = ".((int) $oldid)." AND module = '".$this->db->escape($this->rights_class)."'");
+		}
 	}
 
 	/**

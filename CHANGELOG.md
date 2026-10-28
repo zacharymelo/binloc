@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.20.0] - 2026-10-28
+
+### Changed
+- **Module ID changed to 194285** (reserved range, needed for DoliStore). It was 530100. Permission IDs are now 19428501 (read), 19428502 (write) and 19428503 (admin), instead of 530101–530103. Permissions granted to users and groups under the old IDs are carried over when the module is enabled. **After upgrading, disable and re-enable the module once.**
+
 ## [2.19.1] - 2026-09-30
 
 ### Added

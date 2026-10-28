@@ -48,10 +48,11 @@ Each launch point has its own switch in binloc setup, so every organisation turn
 
 ## Upgrading
 
-Replace the module files with the new release. Two situations need one extra click:
+Replace the module files with the new release. Three situations need one extra click:
 
 - **Schema migrations** (2.0.0's normalised model; 2.4.0's value descriptions): if you re-enable the module after replacing the files, the migration runs automatically. If the module stays enabled, open **module setup** — a banner shows the pending migration with a **Run migration** button. Migrations are versioned, resumable and verified before any destructive step; values that no longer match a list are preserved as "(legacy)" entries.
 - **New menu entries** (2.4.0 added Bin Labels): disable and re-enable the module once so Dolibarr registers them.
+- **Module ID change** (2.20.0 moved the module from ID 530100 to 194285): disable and re-enable the module once. Permissions granted under the old IDs are moved to the new ones when the module is enabled.
 
 Everything else — layouts, output modes, tooltips — is a plain file swap.
 

@@ -4,8 +4,8 @@
 #
 # Module
 #
-Module530100Name = Bin Locations
-Module530100Desc = Track product locations within warehouses using configurable bin/shelf/row levels
+Module194285Name = Bin Locations
+Module194285Desc = Track product locations within warehouses using configurable bin/shelf/row levels
 
 #
 # Admin / Setup
@@ -188,9 +188,9 @@ InvalidOptionDescription = Description is too long (255 characters maximum)
 #
 # Permissions
 #
-Permission530101 = Read bin locations
-Permission530102 = Create/modify bin locations
-Permission530103 = Configure warehouse levels
+Permission19428501 = Read bin locations
+Permission19428502 = Create/modify bin locations
+Permission19428503 = Configure warehouse levels
 
 #
 # Migration (v2 schema)
