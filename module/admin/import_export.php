@@ -278,6 +278,9 @@ function binloc_ie_print_report($report, $kind, $applied)
 if ($action === 'export_layout') {
 	binloc_csv_output('binloc-layout'.($fk_entrepot > 0 ? '-'.$fk_entrepot : '').'.csv', binloc_layout_export_lines($db, $fk_entrepot));
 }
+if ($action === 'export_assign' && GETPOSTISSET('stock') && $fk_entrepot > 0) {
+	binloc_csv_output('binloc-stock-bins-'.$fk_entrepot.'.csv', binloc_stock_export_lines($db, $fk_entrepot));
+}
 if ($action === 'export_assign' && $fk_entrepot > 0) {
 	binloc_csv_output('binloc-assignments-'.$fk_entrepot.'.csv', binloc_assign_export_lines($db, $fk_entrepot));
 }
@@ -550,9 +553,12 @@ $wh_attrs = 'required data-binloc-wh-sync="1"';
 print '<div class="binloc-ie-steps">';
 $body = '<form method="GET" action="'.$_SERVER['PHP_SELF'].'" class="binloc-ie-form">';
 $body .= '<input type="hidden" name="token" value="'.newToken().'">';
-$body .= '<input type="hidden" name="action" value="export_assign">';
 $body .= binloc_ie_field($langs->trans('Warehouse'), binloc_render_warehouse_select($db, 'fk_entrepot', $fk_entrepot, 'flat minwidth200', $wh_attrs));
+$body .= '<input type="hidden" name="action" value="export_assign">';
 $body .= '<input type="submit" class="button smallpaddingimp" value="'.dol_escape_htmltag($langs->trans('CsvExportAssignments')).'">';
+// Second submit of the same form: its name switches the export (theme styles input.button only)
+$body .= '<input type="submit" name="stock" class="button smallpaddingimp" value="'.dol_escape_htmltag($langs->trans('CsvExportStockBins')).'">';
+$body .= '<div class="opacitymedium small">'.$langs->trans('CsvExportStockBinsHint').'</div>';
 $body .= '</form>';
 binloc_ie_step(1, $langs->trans('CsvStepExport'), $langs->trans('CsvAssignExportHint'), $body);
 if ($can_write) {
@@ -575,6 +581,8 @@ binloc_ie_format(
 		'product'         => $langs->trans('CsvColAssignProduct'),
 		'product_label'   => $langs->trans('CsvColAssignLabel'),
 		'lot'             => $langs->trans('CsvColAssignLot'),
+		'qty_in_stock'    => $langs->trans('CsvColAssignQty'),
+		'bin_status'      => $langs->trans('CsvColAssignStatus'),
 		'&lt;'.dol_escape_htmltag($langs->trans('CsvColAssignLevelName')).'&gt;' => $langs->trans('CsvColAssignLevel'),
 		'note'            => $langs->trans('CsvColAssignNote'),
 	),

@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.21.0] - 2026-11-10
+
+### Added
+- **Export stock and bins (CSV)** on the Import/Export page, next to *Export assignments*. For one warehouse it lists every product with stock there, plus anything already assigned, with two extra columns: `qty_in_stock` and `bin_status` (`assigned`, `needs bin`, or `bins per lot` when only the product's lots have bins). Fill in the level cells of the `needs bin` rows and import the file on the same card to assign them. The two extra columns are ignored on import and empty rows are skipped.
+- **User guide: "Finding products that still need a bin"**, and the two new columns in the page's format reference.
+
 ## [2.20.1] - 2026-11-10
 
 ### Fixed

@@ -15,6 +15,9 @@
  * Assignments: product;product_label;lot;<level label per column>;note
  *              one row per assignment, per warehouse; product_label is
  *              informational and ignored on import
+ * Stock+bins:  product;product_label;lot;qty_in_stock;bin_status;<levels>;note
+ *              export only: the assignments format plus two informational
+ *              columns, one row per stocked or assigned product (and lot)
  *
  * Import functions run in two modes via $commit: dry-run (validate and
  * report planned actions) and apply (same logic executed in a transaction).
@@ -388,6 +391,112 @@ function binloc_assign_export_lines($db, $fk_entrepot)
 }
 
 /**
+ * Informational columns of the stock export, ignored on import
+ *
+ * @return string[] Lowercase column names
+ */
+function binloc_stock_export_info_columns()
+{
+	return array('qty_in_stock', 'bin_status');
+}
+
+/**
+ * Build the "stock and bins" CSV lines for one warehouse: every product with
+ * stock there, plus every product or lot already assigned there, with its
+ * quantity and whether it still needs a bin.
+ *
+ * The file is an assignments file with two extra informational columns, so
+ * filling the empty level cells and importing it assigns the missing bins.
+ * Product rows use the same set as the Bulk assign page
+ * (binloc_get_products_in_warehouse); lot-level assignments follow their
+ * product's row.
+ *
+ * @param  DoliDB $db          Database handler
+ * @param  int    $fk_entrepot Warehouse ID
+ * @return array               Array of cell-arrays incl. header
+ */
+function binloc_stock_export_lines($db, $fk_entrepot)
+{
+	global $langs;
+
+	$levelObj = new BinlocWarehouseLevel($db);
+	$levels = $levelObj->fetchByWarehouse($fk_entrepot);
+
+	$header = array('product', 'product_label', 'lot', 'qty_in_stock', 'bin_status');
+	foreach ($levels as $cfg) {
+		$header[] = $cfg->label;
+	}
+	$header[] = 'note';
+	$lines = array($header);
+
+	// Lot quantities in this warehouse, keyed "fk_product|batch"
+	$lot_qty = array();
+	$sql = "SELECT ps.fk_product, pb.batch, pb.qty";
+	$sql .= " FROM ".MAIN_DB_PREFIX."product_batch as pb";
+	$sql .= " INNER JOIN ".MAIN_DB_PREFIX."product_stock as ps ON ps.rowid = pb.fk_product_stock";
+	$sql .= " WHERE ps.fk_entrepot = ".(int) $fk_entrepot;
+	$resql = $db->query($sql);
+	if ($resql) {
+		while ($obj = $db->fetch_object($resql)) {
+			$lot_qty[$obj->fk_product.'|'.$obj->batch] = (float) $obj->qty;
+		}
+		$db->free($resql);
+	}
+
+	// Lot-level assignments, grouped per product
+	$lot_rows = array();
+	$locObj = new BinlocProductLocation($db);
+	foreach ($locObj->fetchAllByWarehouse($fk_entrepot, '', 'p.ref', 'ASC', 0, 0) as $row) {
+		if ($row->fk_product_lot > 0) {
+			$lot_rows[$row->fk_product][] = $row;
+		}
+	}
+
+	$status_assigned = $langs->transnoentitiesnoconv('CsvBinStatusAssigned');
+	$status_needed   = $langs->transnoentitiesnoconv('CsvBinStatusNeeded');
+	$status_per_lot  = $langs->transnoentitiesnoconv('CsvBinStatusPerLot');
+
+	$line_for = function ($ref, $label, $lot, $qty, $status, $values, $note) use ($levels) {
+		$cells = array($ref, $label, (string) $lot, (string) (0 + $qty), $status);
+		foreach ($levels as $level_id => $cfg) {
+			$cells[] = isset($values[$level_id]) ? (string) $values[$level_id]->display : '';
+		}
+		$cells[] = (string) $note;
+		return $cells;
+	};
+	$add_lots = function ($fk_product) use (&$lot_rows, &$lines, $lot_qty, $line_for, $status_assigned) {
+		if (empty($lot_rows[$fk_product])) {
+			return;
+		}
+		foreach ($lot_rows[$fk_product] as $row) {
+			$key = $fk_product.'|'.$row->lot_batch;
+			$qty = isset($lot_qty[$key]) ? $lot_qty[$key] : 0;
+			$lines[] = $line_for($row->product_ref, $row->product_label, $row->lot_batch, $qty, $status_assigned, $row->values, $row->note);
+		}
+		unset($lot_rows[$fk_product]);
+	};
+
+	foreach (binloc_get_products_in_warehouse($db, $fk_entrepot, '', 'p.ref', 'ASC') as $obj) {
+		$fk_product = (int) $obj->fk_product;
+		if ($obj->loc_rowid > 0) {
+			$status = $status_assigned;
+		} elseif (!empty($lot_rows[$fk_product])) {
+			$status = $status_per_lot;
+		} else {
+			$status = $status_needed;
+		}
+		$lines[] = $line_for($obj->ref, $obj->label, '', $obj->stock, $status, $obj->values, $obj->note);
+		$add_lots($fk_product);
+	}
+	// Lots assigned here whose product has neither stock nor a product-level bin
+	foreach (array_keys($lot_rows) as $fk_product) {
+		$add_lots($fk_product);
+	}
+
+	return $lines;
+}
+
+/**
  * Import an assignments CSV for one warehouse.
  *
  * Level columns are matched to the warehouse's levels by header label
@@ -440,6 +549,8 @@ function binloc_assign_import_run($db, $fk_entrepot, $parsed, $create_missing, $
 			continue; // informational
 		} elseif (isset($levels_by_label[$key])) {
 			$col_levels[$idx] = $levels_by_label[$key];
+		} elseif (in_array($key, binloc_stock_export_info_columns(), true)) {
+			continue; // informational (stock export)
 		} else {
 			$report['errors'][] = $langs->trans('CsvUnknownColumn', $name);
 		}

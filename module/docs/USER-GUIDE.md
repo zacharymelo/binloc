@@ -200,6 +200,15 @@ P4;Serialized product;LOT001;R2;1;B;
 
 There's also an **Export assignments (CSV)** button directly on each warehouse's Bin Locations tab.
 
+### Finding products that still need a bin
+
+**Export stock and bins (CSV)**, next to Export assignments, lists every product with stock in the warehouse, plus anything already assigned there. It adds two columns to the assignments format:
+
+- `qty_in_stock`: the quantity in this warehouse.
+- `bin_status`: `assigned`, `needs bin`, or `bins per lot` (the product has no bin of its own, but some of its lots do; the lot rows follow it).
+
+To slot the missing products, filter the sheet on `needs bin`, fill in their level cells, save as CSV and import it on the same card. The two extra columns are ignored on import, and rows you leave empty are skipped, so you can import the whole file as it is.
+
 ## Pick and place sheets
 
 A sheet is a printable PDF listing where to pick goods from or put them away, one line per bin, with a tick box. There are two ways to make one:
