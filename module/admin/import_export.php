@@ -506,7 +506,7 @@ print '</div>';
 
 print '<div class="binloc-ie-steps">';
 binloc_ie_step(1, $langs->trans('CsvStepExport'), $langs->trans('CsvLayoutExportHint'),
-	'<form method="GET" action="'.$_SERVER['PHP_SELF'].'" class="binloc-ie-form"><input type="hidden" name="action" value="export_layout"><input type="submit" class="button smallpaddingimp" value="'.dol_escape_htmltag($langs->trans('CsvExportAllLayouts')).'"></form>');
+	'<form method="GET" action="'.$_SERVER['PHP_SELF'].'" class="binloc-ie-form"><input type="hidden" name="token" value="'.newToken().'"><input type="hidden" name="action" value="export_layout"><input type="submit" class="button smallpaddingimp" value="'.dol_escape_htmltag($langs->trans('CsvExportAllLayouts')).'"></form>');
 if ($can_admin) {
 	$body = '<form method="POST" action="'.$_SERVER['PHP_SELF'].'" enctype="multipart/form-data" class="binloc-ie-form">';
 	$body .= '<input type="hidden" name="token" value="'.newToken().'">';
@@ -549,6 +549,7 @@ print '</div>';
 $wh_attrs = 'required data-binloc-wh-sync="1"';
 print '<div class="binloc-ie-steps">';
 $body = '<form method="GET" action="'.$_SERVER['PHP_SELF'].'" class="binloc-ie-form">';
+$body .= '<input type="hidden" name="token" value="'.newToken().'">';
 $body .= '<input type="hidden" name="action" value="export_assign">';
 $body .= binloc_ie_field($langs->trans('Warehouse'), binloc_render_warehouse_select($db, 'fk_entrepot', $fk_entrepot, 'flat minwidth200', $wh_attrs));
 $body .= '<input type="submit" class="button smallpaddingimp" value="'.dol_escape_htmltag($langs->trans('CsvExportAssignments')).'">';

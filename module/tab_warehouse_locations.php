@@ -253,7 +253,7 @@ if ($can_write) {
 		print img_picto('', 'setup', 'class="pictofixedwidth"').$langs->trans('ManageLevels');
 		print '</a>';
 	}
-	$export_url = dol_buildpath('/binloc/admin/import_export.php', 1).'?action=export_assign&fk_entrepot='.$id;
+	$export_url = dol_buildpath('/binloc/admin/import_export.php', 1).'?action=export_assign&fk_entrepot='.$id.'&token='.newToken();
 	print ' <a href="'.$export_url.'" class="button">';
 	print img_picto('', 'download', 'class="pictofixedwidth"').$langs->trans('CsvExportAssignments');
 	print '</a>';

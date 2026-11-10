@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.20.1] - 2026-11-10
+
+### Fixed
+- **Export buttons were refused by Dolibarr's CSRF protection** ("Token not provided") when `MAIN_SECURITY_CSRF_WITH_TOKEN` is 3. *Export all layouts (CSV)* and *Export assignments* on the Import/Export page, and *Export assignments* on a warehouse's Locations tab, now send a token.
+
 ## [2.20.0] - 2026-10-28
 
 ### Changed
