@@ -380,14 +380,15 @@ function binloc_sheet_rows_from_order($db, $order)
 	$tobatch = binloc_sheet_products_tobatch($db, $product_ids);
 	$tree = binloc_sheet_kit_tree($db, $product_ids);
 
+	// @phan-suppress-next-line PhanUndeclaredProperty (in core, missing from the phan stubs)
 	$fk_warehouse = empty($order->fk_warehouse) ? 0 : (int) $order->fk_warehouse;
 
 	foreach ($order->lines as $line) {
 		$fk_product = empty($line->fk_product) ? 0 : (int) $line->fk_product;
-		if ($fk_product <= 0 || (isset($line->product_type) && (int) $line->product_type !== 0)) {
+		if ($fk_product <= 0 || (int) $line->product_type !== 0) {
 			continue;
 		}
-		$line_id   = !empty($line->id) ? (int) $line->id : (int) $line->rowid;
+		$line_id   = (int) $line->id;
 		$shipped   = isset($order->expeditions[$line_id]) ? (float) $order->expeditions[$line_id] : 0.0;
 		$remaining = (float) $line->qty - $shipped;
 		if ($remaining <= 0) {
@@ -780,7 +781,7 @@ function binloc_sheet_products_tobatch($db, $product_ids)
 	if (empty($product_ids) || !isModEnabled('productbatch')) {
 		return $out;
 	}
-	$sql = "SELECT rowid, tobatch FROM ".MAIN_DB_PREFIX."product WHERE rowid IN (".implode(',', $product_ids).")";
+	$sql = "SELECT rowid, tobatch FROM ".MAIN_DB_PREFIX."product WHERE rowid IN (".$db->sanitize(implode(',', $product_ids)).")";
 	$resql = $db->query($sql);
 	if ($resql) {
 		while ($obj = $db->fetch_object($resql)) {
@@ -1044,7 +1045,7 @@ function binloc_sheet_attach_locations($db, $rows)
 		$sql = "SELECT DISTINCT pl.fk_product, pl.fk_entrepot, e.ref";
 		$sql .= " FROM ".MAIN_DB_PREFIX."binloc_product_location as pl";
 		$sql .= " INNER JOIN ".MAIN_DB_PREFIX."entrepot as e ON e.rowid = pl.fk_entrepot";
-		$sql .= " WHERE pl.fk_product IN (".implode(',', array_keys($pids)).")";
+		$sql .= " WHERE pl.fk_product IN (".$db->sanitize(implode(',', array_keys($pids))).")";
 		$sql .= " AND pl.entity IN (".getEntity('stock').")";
 		$sql .= " ORDER BY e.ref ASC";
 		$resql = $db->query($sql);
@@ -1075,7 +1076,7 @@ function binloc_sheet_attach_locations($db, $rows)
 		$ids[] = (int) $h->rowid;
 	}
 	$notes = array();
-	$sql = "SELECT rowid, note FROM ".MAIN_DB_PREFIX."binloc_product_location WHERE rowid IN (".implode(',', array_unique($ids)).")";
+	$sql = "SELECT rowid, note FROM ".MAIN_DB_PREFIX."binloc_product_location WHERE rowid IN (".$db->sanitize(implode(',', array_unique($ids))).")";
 	$resql = $db->query($sql);
 	if ($resql) {
 		while ($obj = $db->fetch_object($resql)) {

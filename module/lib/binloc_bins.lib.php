@@ -32,7 +32,7 @@ dol_include_once('/binloc/lib/binloc.lib.php');
 /**
  * Level rowids of a warehouse in position order (top level first)
  *
- * @param  array $wh_levels Level configs keyed by rowid (fetchByWarehouse output)
+ * @param  array<int,stdClass> $wh_levels Level configs keyed by rowid (fetchByWarehouse output)
  * @return int[]
  */
 function binloc_level_chain($wh_levels)
@@ -43,8 +43,8 @@ function binloc_level_chain($wh_levels)
 /**
  * The level that follows $level_id in the chain, or 0 when it is the deepest
  *
- * @param  array $wh_levels Level configs keyed by rowid
- * @param  int   $level_id  Level rowid
+ * @param  array<int,stdClass> $wh_levels Level configs keyed by rowid
+ * @param  int                 $level_id  Level rowid
  * @return int
  */
 function binloc_next_level($wh_levels, $level_id)
@@ -62,9 +62,9 @@ function binloc_next_level($wh_levels, $level_id)
  * that level", so the label level is the one above it; -1 meant "no split",
  * so the label level is the deepest.
  *
- * @param  array $wh_levels        Level configs keyed by rowid
- * @param  int   $legacy_sub_level Stored sub_level from an old layout, 0 if none
- * @return int                     Level rowid, 0 when the warehouse has no levels
+ * @param  array<int,stdClass> $wh_levels        Level configs keyed by rowid
+ * @param  int                 $legacy_sub_level Stored sub_level from an old layout, 0 if none
+ * @return int                                   Level rowid, 0 when the warehouse has no levels
  */
 function binloc_default_label_level($wh_levels, $legacy_sub_level = 0)
 {
@@ -104,7 +104,7 @@ function binloc_value_key($entry)
  */
 function binloc_value_present($entry)
 {
-	return $entry !== null && isset($entry->display) && $entry->display !== null && $entry->display !== '';
+	return $entry !== null && isset($entry->display) && $entry->display !== '';
 }
 
 /**
@@ -130,11 +130,11 @@ function binloc_value_present($entry)
  * A row whose values stop above the label level keys on what it has, so a
  * product slotted only to a shelf still appears when printing bag tags.
  *
- * @param  array  $rows           Value rows (assignments and/or enumerated bins)
- * @param  array  $wh_levels      Level configs keyed by rowid
- * @param  int    $label_level_id Level the labels are stuck on
- * @param  string $code_sep       Separator between code parts
- * @return array                  Bins, natural-sorted by code
+ * @param  stdClass[]          $rows           Value rows (assignments and/or enumerated bins)
+ * @param  array<int,stdClass> $wh_levels      Level configs keyed by rowid
+ * @param  int                 $label_level_id Level the labels are stuck on
+ * @param  string              $code_sep       Separator between code parts
+ * @return stdClass[]                          Bins, natural-sorted by code
  */
 function binloc_bins_from_rows($rows, $wh_levels, $label_level_id, $code_sep = '')
 {
@@ -243,12 +243,12 @@ function binloc_bins_from_rows($rows, $wh_levels, $label_level_id, $code_sep = '
  *   'truncated'    => bool, true when $max was hit
  * )
  *
- * @param  array $wh_levels      Level configs keyed by rowid
- * @param  int   $label_level_id Level to enumerate down to
- * @param  array $fixed          level rowid => raw filter value (option rowid
- *                               for option-backed levels, text otherwise)
- * @param  int   $max            Hard cap on generated rows
- * @return array
+ * @param  array<int,stdClass> $wh_levels      Level configs keyed by rowid
+ * @param  int                 $label_level_id Level to enumerate down to
+ * @param  array<int,string>   $fixed          level rowid => raw filter value (option rowid
+ *                                             for option-backed levels, text otherwise)
+ * @param  int                 $max            Hard cap on generated rows
+ * @return array{rows:stdClass[],unenumerable:string[],truncated:bool}
  */
 function binloc_enumerate_bins($wh_levels, $label_level_id, $fixed = array(), $max = 1000)
 {

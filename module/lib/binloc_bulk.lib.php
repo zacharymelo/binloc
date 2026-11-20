@@ -20,16 +20,17 @@ dol_include_once('/binloc/class/binlocproductlocation.class.php');
  *
  * @param  DoliDB    $db     Database handler
  * @param  Reception $object Reception with lines fetched
- * @return array             Array of stdClass bulk rows
+ * @return stdClass[]        Array of stdClass bulk rows
  */
 function binloc_bulk_rows_from_reception($db, $object)
 {
 	$rows = array();
 
 	foreach ($object->lines as $idx => $line) {
-		$fk_product  = isset($line->fk_product) ? (int) $line->fk_product : 0;
-		$fk_entrepot = isset($line->fk_entrepot) ? (int) $line->fk_entrepot : 0;
-		$batch       = isset($line->batch) ? trim((string) $line->batch) : '';
+		// Declared on the line class in every supported version; unset ones are null and cast to 0 / ''
+		$fk_product  = (int) $line->fk_product;
+		$fk_entrepot = (int) $line->fk_entrepot;
+		$batch       = trim((string) $line->batch);
 
 		if ($fk_product <= 0 || $fk_entrepot <= 0) {
 			continue;
@@ -38,7 +39,7 @@ function binloc_bulk_rows_from_reception($db, $object)
 		$fk_product_lot = 0;
 		if (!empty($batch)) {
 			$sql = "SELECT rowid FROM ".MAIN_DB_PREFIX."product_lot";
-			$sql .= " WHERE fk_product = ".$fk_product;
+			$sql .= " WHERE fk_product = ".((int) $fk_product);
 			$sql .= " AND batch = '".$db->escape($batch)."'";
 			$sql .= " AND entity IN (".getEntity('stock').")";
 			$resql = $db->query($sql);
@@ -58,8 +59,11 @@ function binloc_bulk_rows_from_reception($db, $object)
 		$row->fk_product_lot = $fk_product_lot;
 		$row->batch          = $batch;
 		$row->product_ref    = isset($line->ref) ? $line->ref : '';
-		$row->product_label  = isset($line->label) ? $line->label : (isset($line->product->label) ? $line->product->label : '');
-		$row->qty            = isset($line->qty) ? (float) $line->qty : 0;
+		$row->product_label  = (string) $line->label;
+		if ($row->product_label === '' && is_object($line->product)) {
+			$row->product_label = (string) $line->product->label;
+		}
+		$row->qty            = (float) $line->qty;
 		$row->disabled_hint  = '';
 		$rows[] = $row;
 	}
@@ -73,7 +77,7 @@ function binloc_bulk_rows_from_reception($db, $object)
  *
  * @param  DoliDB $db     Database handler
  * @param  Mo     $object Manufacturing order
- * @return array          Array of stdClass bulk rows
+ * @return stdClass[]     Array of stdClass bulk rows
  */
 function binloc_bulk_rows_from_mo($db, $object)
 {
@@ -127,7 +131,7 @@ function binloc_bulk_rows_from_mo($db, $object)
  * @param  string $sortorder   Sort order
  * @param  int    $limit       Max rows
  * @param  int    $offset      Offset
- * @return array               Array of stdClass bulk rows
+ * @return stdClass[]          Array of stdClass bulk rows
  */
 function binloc_bulk_rows_from_warehouse($db, $fk_entrepot, $search = '', $sortfield = 'p.ref', $sortorder = 'ASC', $limit = 0, $offset = 0)
 {
@@ -157,7 +161,7 @@ function binloc_bulk_rows_from_warehouse($db, $fk_entrepot, $search = '', $sortf
  * Attach existing assignment data (loc_id, note, values) to bulk rows
  *
  * @param  DoliDB $db   Database handler
- * @param  array  $rows Bulk rows, modified in place
+ * @param  stdClass[] $rows Bulk rows, modified in place
  * @return void
  */
 function binloc_bulk_attach_existing($db, $rows)
@@ -190,7 +194,7 @@ function binloc_bulk_attach_existing($db, $rows)
 	foreach ($headers as $h) {
 		$ids[] = (int) $h->rowid;
 	}
-	$sql = "SELECT rowid, note FROM ".MAIN_DB_PREFIX."binloc_product_location WHERE rowid IN (".implode(',', $ids).")";
+	$sql = "SELECT rowid, note FROM ".MAIN_DB_PREFIX."binloc_product_location WHERE rowid IN (".$db->sanitize(implode(',', $ids)).")";
 	$resql = $db->query($sql);
 	if ($resql) {
 		$notes = array();
@@ -212,14 +216,16 @@ function binloc_bulk_attach_existing($db, $rows)
 /**
  * Render the shared bulk-assign table
  *
- * @param  DoliDB $db           Database handler
- * @param  array  $rows         Bulk rows from a binloc_bulk_rows_from_* provider
- * @param  array  $levels_by_wh Level configs per warehouse (fetchByWarehouses output)
- * @param  array  $opts         Options:
+ * Options ($opts):
  *                              - table_id (string, required)
  *                              - warehouse_select (bool) allow changing the target warehouse per row
  *                              - checkboxes (bool) row checkboxes for the batch panel
  *                              - qty_label (string) header for the qty column
+ *
+ * @param  DoliDB                         $db           Database handler
+ * @param  stdClass[]                     $rows         Bulk rows from a binloc_bulk_rows_from_* provider
+ * @param  array<int,array<int,stdClass>> $levels_by_wh Level configs per warehouse (fetchByWarehouses output)
+ * @param  array{table_id:string,warehouse_select?:bool,checkboxes?:bool,qty_label?:string} $opts Options, see above
  * @return void  Prints HTML
  */
 function binloc_render_bulk_table($db, $rows, $levels_by_wh, $opts)

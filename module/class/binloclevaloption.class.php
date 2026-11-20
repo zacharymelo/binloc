@@ -39,7 +39,7 @@ class BinlocLevelOption
 	 *
 	 * @param  int  $fk_level         Level rowid
 	 * @param  bool $include_inactive Include deactivated options
-	 * @return array                  Array of stdClass {id, value, description, position, active}
+	 * @return stdClass[]             Array of stdClass {id, value, description, position, active}
 	 */
 	public function fetchByLevel($fk_level, $include_inactive = false)
 	{

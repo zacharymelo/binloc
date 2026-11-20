@@ -24,9 +24,21 @@
  */
 
 $res = 0;
-if (!$res && file_exists("../main.inc.php")) { $res = @include "../main.inc.php"; }
+if (file_exists("../main.inc.php")) { $res = @include "../main.inc.php"; }
 if (!$res && file_exists("../../main.inc.php")) { $res = @include "../../main.inc.php"; }
 if (!$res) { die("Include of main fails"); }
+/**
+ * @var Conf $conf
+ * @var DoliDB $db
+ * @var HookManager $hookmanager
+ * @var Translate $langs
+ * @var User $user
+ */
+'@phan-var-force Conf $conf';
+'@phan-var-force DoliDB $db';
+'@phan-var-force HookManager $hookmanager';
+'@phan-var-force Translate $langs';
+'@phan-var-force User $user';
 
 require_once DOL_DOCUMENT_ROOT.'/core/class/html.form.class.php';
 dol_include_once('/binloc/lib/binloc.lib.php');
@@ -124,8 +136,8 @@ foreach ($wh_levels as $level_id => $cfg) {
 /**
  * Render one item list (shared by the loose-items and sub-bin sections)
  *
- * @param  array    $items  Item objects {ref, label, batch, subpath}
- * @param  stdClass $layout Label layout (show_batch, show_product_label)
+ * @param  stdClass[] $items  Item objects {ref, label, batch, subpath}
+ * @param  stdClass   $layout Label layout (show_batch, show_product_label)
  * @return string           HTML <ul>
  */
 function binloc_labels_render_items($items, $layout)
@@ -152,9 +164,9 @@ function binloc_labels_render_items($items, $layout)
 /**
  * Render the label cards (shared by preview and print output)
  *
- * @param  array    $bins        Bins from binloc_bins_from_rows
- * @param  stdClass $layout      Label layout
- * @param  string   $code_prefix Warehouse prefix (with separator) put before every code
+ * @param  stdClass[] $bins        Bins from binloc_bins_from_rows
+ * @param  stdClass   $layout      Label layout
+ * @param  string     $code_prefix Warehouse prefix (with separator) put before every code
  * @return string                HTML
  */
 function binloc_labels_render_cards($bins, $layout, $code_prefix = '')
@@ -213,7 +225,9 @@ if ($fk_entrepot > 0 && !empty($wh_levels) && $label_level > 0) {
 		if ($enum['truncated']) {
 			$notices[] = $langs->trans('LabelEnumTruncated', count($enum['rows']));
 		}
-		$rows = array_merge($rows, $enum['rows']);
+		foreach ($enum['rows'] as $enum_row) {
+			$rows[] = $enum_row;
+		}
 	}
 
 	$bins = binloc_bins_from_rows($rows, $wh_levels, $label_level, (string) $layout->code_sep);
@@ -297,6 +311,7 @@ print '<form method="GET" action="'.$_SERVER['PHP_SELF'].'">';
 print binloc_field($langs->trans('Warehouse'), binloc_render_warehouse_select($db, 'fk_entrepot', $fk_entrepot, 'flat minwidth200', 'onchange="this.form.submit()"'), '', $langs->trans('LabelHelpWarehouse'));
 print '</form>';
 
+$level_label = '';
 if ($fk_entrepot > 0 && !empty($wh_levels)) {
 	$level_label = $wh_levels[$label_level]->label;
 
@@ -359,7 +374,7 @@ if ($fk_entrepot > 0) {
 	} else {
 		// ---- Layout settings (admin): this level's override, or the warehouse default ----
 		if ($can_admin) {
-			$num = function ($key, $caption, $title = '') use ($layout, $langs) {
+			$num = function ($key, $caption, $title = '') use ($layout) {
 				return binloc_field($caption, '<input type="text" name="layout_'.$key.'" class="flat binloc-num" value="'.binloc_css_num($layout->$key).'">', '', $title);
 			};
 			$check = function ($key, $caption, $help = '') use ($layout) {

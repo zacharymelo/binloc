@@ -40,7 +40,7 @@ class ActionsBinloc
 	/**
 	 * Hook: formObjectOptions — warehouse card summary row / lot card location row
 	 *
-	 * @param  array   $parameters Hook parameters
+	 * @param  array<string,mixed> $parameters Hook parameters
 	 * @param  object  $object     The current card object
 	 * @param  string  $action     Current action
 	 * @return int                 0 = continue hooks
@@ -50,10 +50,10 @@ class ActionsBinloc
 		$contexts = isset($parameters['currentcontext']) ? explode(':', $parameters['currentcontext']) : array();
 
 		if (in_array('warehousecard', $contexts)) {
-			return $this->_binloc_warehousecard_options($object);
+			return $this->binlocWarehousecardOptions($object);
 		}
 		if (in_array('productlotcard', $contexts)) {
-			return $this->_binloc_productlotcard_options($object);
+			return $this->binlocProductlotcardOptions($object);
 		}
 
 		return 0;
@@ -69,7 +69,7 @@ class ActionsBinloc
 	 * @param  object $object The Entrepot object
 	 * @return int            0
 	 */
-	private function _binloc_warehousecard_options($object)
+	private function binlocWarehousecardOptions($object)
 	{
 		global $langs;
 
@@ -114,7 +114,7 @@ class ActionsBinloc
 	 * @param  object $object The Productlot object
 	 * @return int            0
 	 */
-	private function _binloc_productlotcard_options($object)
+	private function binlocProductlotcardOptions($object)
 	{
 		global $langs, $user;
 
@@ -236,7 +236,7 @@ jQuery(function ($) {
 	/**
 	 * Hook: printFieldListTitle — add "Bin Location" column header on dispatch page
 	 *
-	 * @param  array   $parameters Hook parameters
+	 * @param  array<string,mixed> $parameters Hook parameters
 	 * @param  object  $object     Object
 	 * @param  string  $action     Current action
 	 * @return int
@@ -264,7 +264,7 @@ jQuery(function ($) {
 	 * naming (entrepot + suffix); when that convention does not match, the
 	 * cell degrades to a dash instead of breaking the table.
 	 *
-	 * @param  array   $parameters Hook parameters (includes objp, suffix, i, j)
+	 * @param  array<string,mixed> $parameters Hook parameters (includes objp, suffix, i, j)
 	 * @param  object  $object     The Reception/SupplierOrder object
 	 * @param  string  $action     Current action
 	 * @return int
@@ -322,7 +322,7 @@ jQuery(function ($) {
 	 * the user can read the object (the same right the Documents block needs
 	 * to generate). The Documents block keeps working as before.
 	 *
-	 * @param  array   $parameters Hook parameters
+	 * @param  array<string,mixed> $parameters Hook parameters
 	 * @param  object  $object     Order, shipment or reception
 	 * @param  string  $action     Current action
 	 * @return int                 0 = continue with core buttons

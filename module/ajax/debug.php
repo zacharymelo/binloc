@@ -13,10 +13,22 @@
  */
 
 $res = 0;
-if (!$res && file_exists("../../main.inc.php")) { $res = @include "../../main.inc.php"; }
+if (file_exists("../../main.inc.php")) { $res = @include "../../main.inc.php"; }
 if (!$res && file_exists("../../../main.inc.php")) { $res = @include "../../../main.inc.php"; }
 if (!$res && file_exists("../../../../main.inc.php")) { $res = @include "../../../../main.inc.php"; }
 if (!$res) { http_response_code(500); exit; }
+/**
+ * @var Conf $conf
+ * @var DoliDB $db
+ * @var HookManager $hookmanager
+ * @var Translate $langs
+ * @var User $user
+ */
+'@phan-var-force Conf $conf';
+'@phan-var-force DoliDB $db';
+'@phan-var-force HookManager $hookmanager';
+'@phan-var-force Translate $langs';
+'@phan-var-force User $user';
 
 if (!$user->admin) { http_response_code(403); print 'Admin only'; exit; }
 if (!getDolGlobalInt('BINLOC_DEBUG_MODE')) {
@@ -58,6 +70,8 @@ print sprintf("  %-46s %s\n", 'module enabled', isModEnabled('binloc') ? 'yes' :
 $migration = new BinlocMigration($db);
 $status = $migration->getStatus();
 print sprintf("  %-46s %s\n", 'db version', $status->version ?: '(none)');
+// phan mixes this up with another stdClass 'target' property of the module
+// @phan-suppress-next-line PhanPluginPrintfIncompatibleArgumentType, PhanTypeMismatchArgumentInternal
 print sprintf("  %-46s %s\n", 'target version', $status->target);
 print sprintf("  %-46s %s\n", 'migration state', $status->state);
 if ($status->error) {

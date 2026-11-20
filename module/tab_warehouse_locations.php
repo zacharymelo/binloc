@@ -11,9 +11,21 @@
  */
 
 $res = 0;
-if (!$res && file_exists("../main.inc.php")) { $res = @include "../main.inc.php"; }
+if (file_exists("../main.inc.php")) { $res = @include "../main.inc.php"; }
 if (!$res && file_exists("../../main.inc.php")) { $res = @include "../../main.inc.php"; }
 if (!$res) { die("Include of main fails"); }
+/**
+ * @var Conf $conf
+ * @var DoliDB $db
+ * @var HookManager $hookmanager
+ * @var Translate $langs
+ * @var User $user
+ */
+'@phan-var-force Conf $conf';
+'@phan-var-force DoliDB $db';
+'@phan-var-force HookManager $hookmanager';
+'@phan-var-force Translate $langs';
+'@phan-var-force User $user';
 
 require_once DOL_DOCUMENT_ROOT.'/product/stock/class/entrepot.class.php';
 require_once DOL_DOCUMENT_ROOT.'/core/lib/stock.lib.php';
@@ -159,7 +171,7 @@ $show_list = (!empty($locations) || !empty($search) || $has_filters);
 
 if ($show_list) {
 	print_barre_liste(
-		$langs->trans('ProductsInWarehouse', $object->ref),
+		$langs->trans('ProductsInWarehouse', (string) $object->ref),
 		$page,
 		$_SERVER['PHP_SELF'],
 		$list_param,
@@ -344,7 +356,7 @@ jQuery(function ($) {
 	$table.on("click", ".binloc-row-delete", function (e) {
 		e.preventDefault();
 		var $row = $(this).closest("tr");
-		Binloc.deleteLocation($row.data("loc-id"), "'.dol_escape_js($langs->trans('ConfirmRemoveLocation', $object->ref)).'", function () {
+		Binloc.deleteLocation($row.data("loc-id"), "'.dol_escape_js($langs->trans('ConfirmRemoveLocation', (string) $object->ref)).'", function () {
 			$row.remove();
 		});
 	});

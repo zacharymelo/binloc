@@ -109,7 +109,7 @@ class BinlocWarehouseLevel extends CommonObject
 	 *
 	 * @param  int  $fk_entrepot      Warehouse ID
 	 * @param  bool $include_inactive Include deactivated levels
-	 * @return array                  rowid => stdClass map, or empty array
+	 * @return array<int,stdClass>    rowid => stdClass map, or empty array
 	 */
 	public function fetchByWarehouse($fk_entrepot, $include_inactive = false)
 	{
@@ -122,7 +122,7 @@ class BinlocWarehouseLevel extends CommonObject
 	 *
 	 * @param  int[] $fk_entrepots     Warehouse IDs
 	 * @param  bool  $include_inactive Include deactivated levels
-	 * @return array                   fk_entrepot => (rowid => stdClass) map
+	 * @return array<int,array<int,stdClass>> fk_entrepot => (rowid => stdClass) map
 	 */
 	public function fetchByWarehouses($fk_entrepots, $include_inactive = false)
 	{
@@ -139,7 +139,7 @@ class BinlocWarehouseLevel extends CommonObject
 		$sql .= " o.rowid as opt_id, o.value as opt_value, o.description as opt_description, o.position as opt_position, o.active as opt_active";
 		$sql .= " FROM ".MAIN_DB_PREFIX.$this->table_element." as w";
 		$sql .= " LEFT JOIN ".MAIN_DB_PREFIX."binloc_level_options as o ON o.fk_level = w.rowid";
-		$sql .= " WHERE w.fk_entrepot IN (".implode(',', $ids).")";
+		$sql .= " WHERE w.fk_entrepot IN (".$this->db->sanitize(implode(',', $ids)).")";
 		$sql .= " AND w.entity IN (".getEntity('stock').")";
 		if (!$include_inactive) {
 			$sql .= " AND w.active = 1";
@@ -184,7 +184,7 @@ class BinlocWarehouseLevel extends CommonObject
 	 * Fetch just the label map (compatibility helper)
 	 *
 	 * @param  int   $fk_entrepot Warehouse ID
-	 * @return array              level rowid => label string map, position order
+	 * @return array<int,string>  level rowid => label string map, position order
 	 */
 	public function fetchLabelsByWarehouse($fk_entrepot)
 	{
@@ -242,7 +242,7 @@ class BinlocWarehouseLevel extends CommonObject
 	 * because level rowids never change.
 	 *
 	 * @param  int   $fk_entrepot Warehouse ID
-	 * @param  array $rows        Level rows as described above
+	 * @param  array<int,array{id?:int|string,label?:string,datatype?:string,position?:int|string}> $rows Level rows as described above
 	 * @param  User  $user        User performing action
 	 * @return int                >0 if OK, <0 if KO
 	 */
@@ -267,11 +267,11 @@ class BinlocWarehouseLevel extends CommonObject
 				$sql = "UPDATE ".MAIN_DB_PREFIX.$this->table_element." SET";
 				$sql .= " label = '".$this->db->escape($label)."'";
 				$sql .= ", datatype = '".$this->db->escape($datatype)."'";
-				$sql .= ", position = ".$position;
-				$sql .= ", level_num = ".$position;
+				$sql .= ", position = ".((int) $position);
+				$sql .= ", level_num = ".((int) $position);
 				$sql .= ", active = 1";
 				$sql .= ", fk_user_modif = ".(int) $user->id;
-				$sql .= " WHERE rowid = ".$id;
+				$sql .= " WHERE rowid = ".((int) $id);
 				if (!$this->db->query($sql)) {
 					$this->error = $this->db->lasterror();
 					$this->db->rollback();

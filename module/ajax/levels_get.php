@@ -19,9 +19,21 @@ if (!defined('NOREQUIREHTML')) { define('NOREQUIREHTML', '1'); }
 if (!defined('NOREQUIREAJAX')) { define('NOREQUIREAJAX', '1'); }
 
 $res = 0;
-if (!$res && file_exists("../../main.inc.php")) { $res = @include "../../main.inc.php"; }
+if (file_exists("../../main.inc.php")) { $res = @include "../../main.inc.php"; }
 if (!$res && file_exists("../../../main.inc.php")) { $res = @include "../../../main.inc.php"; }
 if (!$res) { die("Include of main fails"); }
+/**
+ * @var Conf $conf
+ * @var DoliDB $db
+ * @var HookManager $hookmanager
+ * @var Translate $langs
+ * @var User $user
+ */
+'@phan-var-force Conf $conf';
+'@phan-var-force DoliDB $db';
+'@phan-var-force HookManager $hookmanager';
+'@phan-var-force Translate $langs';
+'@phan-var-force User $user';
 
 dol_include_once('/binloc/lib/binloc.lib.php');
 dol_include_once('/binloc/class/binlocwarehouselevel.class.php');

@@ -24,9 +24,21 @@ if (!defined('NOREQUIREHTML')) { define('NOREQUIREHTML', '1'); }
 if (!defined('NOREQUIREAJAX')) { define('NOREQUIREAJAX', '1'); }
 
 $res = 0;
-if (!$res && file_exists("../../main.inc.php")) { $res = @include "../../main.inc.php"; }
+if (file_exists("../../main.inc.php")) { $res = @include "../../main.inc.php"; }
 if (!$res && file_exists("../../../main.inc.php")) { $res = @include "../../../main.inc.php"; }
 if (!$res) { die("Include of main fails"); }
+/**
+ * @var Conf $conf
+ * @var DoliDB $db
+ * @var HookManager $hookmanager
+ * @var Translate $langs
+ * @var User $user
+ */
+'@phan-var-force Conf $conf';
+'@phan-var-force DoliDB $db';
+'@phan-var-force HookManager $hookmanager';
+'@phan-var-force Translate $langs';
+'@phan-var-force User $user';
 
 dol_include_once('/binloc/lib/binloc.lib.php');
 dol_include_once('/binloc/lib/binloc_ajax.lib.php');
@@ -119,7 +131,7 @@ foreach ($payload['rows'] as $i => $row) {
 	$failed = false;
 	foreach ($levels as $id => $cfg) {
 		$raw = isset($raw_levels[$id]) ? $raw_levels[$id] : '';
-		if ($raw === '' || $raw === null) {
+		if ($raw === '') {
 			continue; // only-fill-non-empty: blanks never overwrite
 		}
 		if ($loc->setRawValue($cfg, dol_string_nohtmltag((string) $raw)) < 0) {

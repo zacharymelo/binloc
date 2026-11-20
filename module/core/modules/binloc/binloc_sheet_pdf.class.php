@@ -29,6 +29,26 @@ dol_include_once('/binloc/lib/binloc_sheets.lib.php');
 
 /**
  * Pick / place sheet rendering
+ *
+ * Properties of the document model classes that use the trait:
+ * @property DoliDB $db
+ * @property string $name
+ * @property string $description
+ * @property int $update_main_doc_field
+ * @property string $type
+ * @property float $page_largeur
+ * @property float $page_hauteur
+ * @property array{0:float,1:float} $format
+ * @property int $marge_gauche
+ * @property int $marge_droite
+ * @property int $marge_haute
+ * @property int $marge_basse
+ * @property int $option_logo
+ * @property int $option_draft_watermark
+ * @property string $watermark
+ * @property Societe $emetteur
+ * @property string $error
+ * @property array{fullpath:string} $result
  */
 trait BinlocSheetPdfTrait
 {
@@ -72,11 +92,12 @@ trait BinlocSheetPdfTrait
 	/**
 	 * Build rows for an object (or specimen rows) and write the sheet
 	 *
-	 * @param  CommonObject $object      Order, shipment, reception or manufacturing order
+	 * $opts: kind ('pick'|'place', sets title and file name), dir, date, watermark, banner, default_const,
+	 * and either provider (function returning rows) or sections (list of {kind, title (translation key), provider})
+	 *
+	 * @param  Commande|Expedition|Reception|Mo $object Order, shipment, reception or manufacturing order
 	 * @param  Translate    $outputlangs Output language
-	 * @param  array        $opts        kind ('pick'|'place', sets title and file name), dir, date, watermark, banner, default_const,
-	 *                                   and either provider (callable returning rows) or sections
-	 *                                   (list of {kind, title (translation key), provider})
+	 * @param  array{kind:string,dir:string,date:int|string,watermark:string,banner:string,default_const:string,provider?:callable-string,sections?:array<int,array{kind:string,title:string,provider:callable-string}>} $opts Options
 	 * @return int                       1 OK, 0 KO
 	 */
 	protected function binlocSheetGenerate($object, $outputlangs, $opts)
@@ -92,19 +113,21 @@ trait BinlocSheetPdfTrait
 			$sections = array(array('kind' => $opts['kind'], 'title' => '', 'provider' => $opts['provider']));
 		}
 
+		// Sections with their rows: {kind, title, groups}
+		$built = array();
 		if (!empty($object->specimen)) {
 			$dir  = $opts['dir'];
 			$file = $dir.'/SPECIMEN'.$suffix;
-			foreach ($sections as $k => $section) {
-				$sections[$k]['groups'] = $this->binlocSheetSpecimenGroups($section['kind']);
+			foreach ($sections as $section) {
+				$built[] = array('kind' => $section['kind'], 'title' => $section['title'], 'groups' => $this->binlocSheetSpecimenGroups($section['kind']));
 			}
 		} else {
 			$ref  = dol_sanitizeFileName($object->ref);
 			$dir  = $opts['dir'].'/'.$ref;
 			$file = $dir.'/'.$ref.$suffix;
-			foreach ($sections as $k => $section) {
+			foreach ($sections as $section) {
 				$rows = call_user_func($section['provider'], $this->db, $object);
-				$sections[$k]['groups'] = binloc_sheet_finalize($this->db, $rows, $split);
+				$built[] = array('kind' => $section['kind'], 'title' => $section['title'], 'groups' => binloc_sheet_finalize($this->db, $rows, $split));
 			}
 			if (method_exists($object, 'fetch_thirdparty')) {
 				$object->fetch_thirdparty();
@@ -116,7 +139,7 @@ trait BinlocSheetPdfTrait
 			return 0;
 		}
 
-		$ok = $this->binlocSheetWrite($object, $outputlangs, $opts, $sections, $file);
+		$ok = $this->binlocSheetWrite($object, $outputlangs, $opts, $built, $file);
 		if ($ok > 0) {
 			$this->result = array('fullpath' => $file);
 			$this->binlocSheetResetModel($object, $opts['default_const']);
@@ -127,10 +150,10 @@ trait BinlocSheetPdfTrait
 	/**
 	 * Draw and save the PDF
 	 *
-	 * @param  CommonObject $object      Source object
+	 * @param  Commande|Expedition|Reception|Mo $object Source object
 	 * @param  Translate    $outputlangs Output language
-	 * @param  array        $opts        See binlocSheetGenerate()
-	 * @param  array        $sections    List of {kind, title, groups (from binloc_sheet_finalize())}
+	 * @param  array{kind:string,dir:string,date:int|string,watermark:string,banner:string,default_const:string,provider?:callable-string,sections?:array<int,array{kind:string,title:string,provider:callable-string}>} $opts See binlocSheetGenerate()
+	 * @param  array<int,array{kind:string,title:string,groups:stdClass[]}> $sections List of {kind, title, groups (from binloc_sheet_finalize())}
 	 * @param  string       $file        Full output path
 	 * @return int                       1 OK, 0 KO
 	 */
@@ -246,7 +269,7 @@ trait BinlocSheetPdfTrait
 			$pdf->SetFont('', '', $fs - 3);
 			$pdf->SetTextColor(100, 100, 100);
 			$pdf->SetXY($left, $this->page_hauteur - $this->marge_basse - 5);
-			$pdf->MultiCell(($right - $left) / 2, 4, $outputlangs->convToOutputCharset(implode(' · ', array($object->ref, $stamp))), 0, 'L');
+			$pdf->MultiCell(($right - $left) / 2, 4, $outputlangs->convToOutputCharset(implode(' · ', array((string) $object->ref, $stamp))), 0, 'L');
 			$pdf->SetXY($left + ($right - $left) / 2, $this->page_hauteur - $this->marge_basse - 5);
 			$pdf->MultiCell(($right - $left) / 2, 4, $outputlangs->convToOutputCharset(implode(' ', array($outputlangs->transnoentities('Page'), $i, '/', $nb))), 0, 'R');
 			$pdf->SetTextColor(0, 0, 0);
@@ -264,8 +287,8 @@ trait BinlocSheetPdfTrait
 	 * Page header; returns the Y where content starts
 	 *
 	 * @param  TCPDF         $pdf         PDF
-	 * @param  CommonObject  $object      Source object
-	 * @param  array         $opts        Options
+	 * @param  Commande|Expedition|Reception|Mo $object Source object
+	 * @param  array{kind:string,dir:string,date:int|string,watermark:string,banner:string,default_const:string,provider?:callable-string,sections?:array<int,array{kind:string,title:string,provider:callable-string}>} $opts Options
 	 * @param  stdClass|null $group       Warehouse group in split mode, null otherwise
 	 * @param  Translate     $outputlangs Output language
 	 * @param  int           $fs          Base font size
@@ -304,12 +327,12 @@ trait BinlocSheetPdfTrait
 		if (!empty($object->thirdparty) && is_object($object->thirdparty)) {
 			$info[] = pdfBuildThirdpartyName($object->thirdparty, $outputlangs);
 		}
-		if (!empty($object->ref_client)) {
-			$info[] = $object->ref_client;
-		} elseif (!empty($object->ref_customer)) {
-			$info[] = $object->ref_customer;
-		} elseif (!empty($object->ref_supplier)) {
-			$info[] = $object->ref_supplier;
+		// The first reference the object type has: customer's on orders and shipments, supplier's on receptions
+		foreach (array('ref_client', 'ref_customer', 'ref_supplier') as $prop) {
+			if (!empty($object->$prop)) {
+				$info[] = $object->$prop;
+				break;
+			}
 		}
 		$pdf->SetFont('', '', $fs - 1);
 		$pdf->SetXY($left + $w / 2, $y + 6);
@@ -353,7 +376,7 @@ trait BinlocSheetPdfTrait
 	 * Column titles row; returns the Y below it
 	 *
 	 * @param  TCPDF     $pdf         PDF
-	 * @param  array     $cols        Columns
+	 * @param  array<string,array{w:float,title:string,align:string,bold:int,size:int}> $cols Columns
 	 * @param  float     $y           Top
 	 * @param  Translate $outputlangs Output language
 	 * @param  int       $fs          Base font size

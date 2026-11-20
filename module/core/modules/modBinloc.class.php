@@ -29,12 +29,12 @@ class modBinloc extends DolibarrModules
 		$this->numero        = 194285;
 		$this->rights_class  = 'binloc';
 		$this->family        = 'products';
-		$this->module_position = 501;
+		$this->module_position = '501';
 		$this->name          = preg_replace('/^mod/i', '', get_class($this));
 		$this->description   = 'Track product locations within warehouses using configurable bin/shelf/row levels';
 		$this->descriptionlong = 'Each warehouse defines its own location hierarchy (e.g. Row/Bay/Shelf/Bin or Case/Drawer/Bin). Products can have different location coordinates in each warehouse they occupy. Includes bulk assignment, per-warehouse and per-product views.';
 		$this->editor_name   = 'Zachary Melo';
-		$this->version       = '2.22.0';
+		$this->version       = '2.22.1';
 		$this->const_name    = 'MAIN_MODULE_BINLOC';
 		$this->picto         = 'stock';
 

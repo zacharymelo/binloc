@@ -32,7 +32,7 @@ class BinlocMigration
 	/** @var string Last error message */
 	public $error = '';
 
-	/** @var array Accumulated migration report (counts etc.), persisted as JSON */
+	/** @var array<string,mixed> Accumulated migration report (counts etc.), persisted as JSON */
 	protected $report = array();
 
 	/**
@@ -48,7 +48,7 @@ class BinlocMigration
 	/**
 	 * Ordered migration steps: version => method name
 	 *
-	 * @return array
+	 * @return array<string,string>
 	 */
 	protected function getSteps()
 	{
@@ -237,7 +237,7 @@ class BinlocMigration
 		$lv = MAIN_DB_PREFIX.'binloc_location_value';
 
 		if (!$this->tableExists('binloc_location_value')) {
-			$sql = "CREATE TABLE ".$lv." (
+			$sql = "CREATE TABLE ".MAIN_DB_PREFIX."binloc_location_value (
 				rowid INTEGER NOT NULL AUTO_INCREMENT PRIMARY KEY,
 				fk_location INTEGER NOT NULL,
 				fk_level INTEGER NOT NULL,
@@ -320,7 +320,7 @@ class BinlocMigration
 		}
 
 		if (!$this->tableExists('binloc_level_options')) {
-			$sql = "CREATE TABLE ".$lo." (
+			$sql = "CREATE TABLE ".MAIN_DB_PREFIX."binloc_level_options (
 				rowid INTEGER NOT NULL AUTO_INCREMENT PRIMARY KEY,
 				entity INTEGER NOT NULL DEFAULT 1,
 				fk_level INTEGER NOT NULL,
@@ -349,10 +349,10 @@ class BinlocMigration
 
 		// Migrate any v1 option rows (rare — the table was dead code in v1)
 		if ($this->tableExists('binloc_level_options_v1')) {
-			$sql = "INSERT IGNORE INTO ".$lo." (entity, fk_level, value, position, active, date_creation, fk_user_creat)";
+			$sql = "INSERT IGNORE INTO ".MAIN_DB_PREFIX."binloc_level_options (entity, fk_level, value, position, active, date_creation, fk_user_creat)";
 			$sql .= " SELECT o.entity, w.rowid, o.option_value, o.position, o.active, o.date_creation, o.fk_user_creat";
-			$sql .= " FROM ".$lo."_v1 o";
-			$sql .= " INNER JOIN ".$wl." w ON w.entity = o.entity AND w.fk_entrepot = o.fk_entrepot AND w.level_num = o.level_num";
+			$sql .= " FROM ".MAIN_DB_PREFIX."binloc_level_options_v1 o";
+			$sql .= " INNER JOIN ".MAIN_DB_PREFIX."binloc_warehouse_levels w ON w.entity = o.entity AND w.fk_entrepot = o.fk_entrepot AND w.level_num = o.level_num";
 			if (!$this->db->query($sql)) {
 				$this->error = $this->db->lasterror();
 				return -1;
@@ -398,7 +398,7 @@ class BinlocMigration
 			return 1; // already dropped — step previously completed
 		}
 
-		$sql = "SELECT rowid, entity, list_values FROM ".$wl." WHERE datatype = 'list' AND list_values IS NOT NULL AND list_values != ''";
+		$sql = "SELECT rowid, entity, list_values FROM ".MAIN_DB_PREFIX."binloc_warehouse_levels WHERE datatype = 'list' AND list_values IS NOT NULL AND list_values != ''";
 		$resql = $this->db->query($sql);
 		if (!$resql) {
 			$this->error = $this->db->lasterror();
@@ -555,7 +555,7 @@ class BinlocMigration
 		while (true) {
 			$sql = "SELECT rowid, entity, fk_entrepot,";
 			$sql .= " level1_value, level2_value, level3_value, level4_value, level5_value, level6_value";
-			$sql .= " FROM ".$pl." WHERE rowid > ".$cursor." ORDER BY rowid ASC";
+			$sql .= " FROM ".MAIN_DB_PREFIX."binloc_product_location WHERE rowid > ".((int) $cursor)." ORDER BY rowid ASC";
 			$sql .= " ".$this->db->plimit(500);
 
 			$resql = $this->db->query($sql);
@@ -669,7 +669,7 @@ class BinlocMigration
 	 * Data-integrity checks between the legacy columns and the v2 tables.
 	 * Also callable standalone from the admin/debug pages.
 	 *
-	 * @return array|false List of human-readable failure strings (empty = all good), false on query error
+	 * @return string[]|false List of human-readable failure strings (empty = all good), false on query error
 	 */
 	public function runVerification()
 	{
@@ -686,11 +686,11 @@ class BinlocMigration
 		// must not fail verification.
 		if ($this->columnExists('binloc_product_location', 'level1_value')) {
 			for ($n = 1; $n <= 6; $n++) {
-				$sql = "SELECT COUNT(*) FROM ".$pl." p";
-				$sql .= " WHERE p.level".$n."_value IS NOT NULL AND p.level".$n."_value != ''";
-				$sql .= " AND NOT EXISTS (SELECT 1 FROM ".$lv." v";
-				$sql .= " INNER JOIN ".$wl." w ON w.rowid = v.fk_level";
-				$sql .= " WHERE v.fk_location = p.rowid AND w.level_num = ".$n." AND w.fk_entrepot = p.fk_entrepot)";
+				$sql = "SELECT COUNT(*) FROM ".MAIN_DB_PREFIX."binloc_product_location p";
+				$sql .= " WHERE p.level".((int) $n)."_value IS NOT NULL AND p.level".((int) $n)."_value != ''";
+				$sql .= " AND NOT EXISTS (SELECT 1 FROM ".MAIN_DB_PREFIX."binloc_location_value v";
+				$sql .= " INNER JOIN ".MAIN_DB_PREFIX."binloc_warehouse_levels w ON w.rowid = v.fk_level";
+				$sql .= " WHERE v.fk_location = p.rowid AND w.level_num = ".((int) $n)." AND w.fk_entrepot = p.fk_entrepot)";
 				$missing = $this->fetchScalar($sql);
 				if ($missing === false) {
 					return false;
@@ -702,7 +702,7 @@ class BinlocMigration
 		}
 
 		// Exactly one of fk_option / value per row
-		$sql = "SELECT COUNT(*) FROM ".$lv;
+		$sql = "SELECT COUNT(*) FROM ".MAIN_DB_PREFIX."binloc_location_value";
 		$sql .= " WHERE (fk_option IS NULL AND (value IS NULL OR value = ''))";
 		$sql .= " OR (fk_option IS NOT NULL AND value IS NOT NULL AND value != '')";
 		$bad = $this->fetchScalar($sql);
@@ -816,8 +816,8 @@ class BinlocMigration
 	{
 		$pl = MAIN_DB_PREFIX.'binloc_product_location';
 
-		$sql = "SELECT a.rowid FROM ".$pl." a";
-		$sql .= " INNER JOIN ".$pl." b ON a.entity = b.entity";
+		$sql = "SELECT a.rowid FROM ".MAIN_DB_PREFIX."binloc_product_location a";
+		$sql .= " INNER JOIN ".MAIN_DB_PREFIX."binloc_product_location b ON a.entity = b.entity";
 		$sql .= " AND a.fk_product = b.fk_product AND a.fk_entrepot = b.fk_entrepot";
 		$sql .= " AND IFNULL(a.fk_product_lot, 0) = IFNULL(b.fk_product_lot, 0)";
 		$sql .= " AND (a.tms < b.tms OR (a.tms = b.tms AND a.rowid < b.rowid))";

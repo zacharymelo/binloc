@@ -32,7 +32,7 @@ dol_include_once('/binloc/class/binlocproductlocation.class.php');
  * Read a CSV file into rows, handling UTF-8 BOM and , / ; delimiters
  *
  * @param  string $filepath Path to the uploaded file
- * @return array|false      array('header' => string[], 'rows' => string[][]) or false
+ * @return array{header:string[],rows:array<int,string[]>}|false False when the file cannot be read
  */
 function binloc_csv_read($filepath)
 {
@@ -66,7 +66,7 @@ function binloc_csv_read($filepath)
 	fclose($fh);
 
 	return array(
-		'header' => array_map('trim', $header),
+		'header' => array_map('trim', array_map('strval', $header)),
 		'rows'   => $rows,
 	);
 }
@@ -75,7 +75,7 @@ function binloc_csv_read($filepath)
  * Send CSV content as a download and exit
  *
  * @param  string $filename Download filename
- * @param  array  $lines    Array of cell-arrays
+ * @param  array<int,array<int,string|int>> $lines Array of cell-arrays
  * @return void
  */
 function binloc_csv_output($filename, $lines)
@@ -117,7 +117,7 @@ function binloc_csv_resolve_warehouse($db, $ref)
  *
  * @param  DoliDB $db          Database handler
  * @param  int    $fk_entrepot Warehouse ID, 0 for all warehouses with levels
- * @return array               Array of cell-arrays incl. header
+ * @return array<int,array<int,string|int>> Array of cell-arrays incl. header
  */
 function binloc_layout_export_lines($db, $fk_entrepot = 0)
 {
@@ -171,10 +171,10 @@ function binloc_layout_export_lines($db, $fk_entrepot = 0)
  * the file are reported but never removed.
  *
  * @param  DoliDB $db     Database handler
- * @param  array  $parsed Output of binloc_csv_read()
+ * @param  array{header:string[],rows:array<int,string[]>} $parsed Output of binloc_csv_read()
  * @param  User   $user   User performing action
  * @param  bool   $commit false = dry-run report only, true = apply in a transaction
- * @return array          Report: rows[] {line, warehouse, label, action, detail},
+ * @return array{rows:array<int,array{line:int,ref:string,sub:string,action:string,changes:array<int,array{0:string,1:string,2:string}>,detail:string}>,errors:string[],counts:array<string,int>} Report: rows[] {line, warehouse, label, action, detail},
  *                        errors[] strings, counts {create_level, update_level, add_value, unchanged}
  */
 function binloc_layout_import_run($db, $parsed, $user, $commit = false)
@@ -363,7 +363,7 @@ function binloc_layout_import_run($db, $parsed, $user, $commit = false)
  *
  * @param  DoliDB $db          Database handler
  * @param  int    $fk_entrepot Warehouse ID
- * @return array               Array of cell-arrays incl. header
+ * @return array<int,string[]> Array of cell-arrays incl. header
  */
 function binloc_assign_export_lines($db, $fk_entrepot)
 {
@@ -413,7 +413,7 @@ function binloc_stock_export_info_columns()
  *
  * @param  DoliDB $db          Database handler
  * @param  int    $fk_entrepot Warehouse ID
- * @return array               Array of cell-arrays incl. header
+ * @return array<int,string[]> Array of cell-arrays incl. header
  */
 function binloc_stock_export_lines($db, $fk_entrepot)
 {
@@ -507,11 +507,11 @@ function binloc_stock_export_lines($db, $fk_entrepot)
  *
  * @param  DoliDB $db             Database handler
  * @param  int    $fk_entrepot    Warehouse ID
- * @param  array  $parsed         Output of binloc_csv_read()
+ * @param  array{header:string[],rows:array<int,string[]>} $parsed Output of binloc_csv_read()
  * @param  bool   $create_missing Create unknown dropdown values instead of rejecting the row
  * @param  User   $user           User performing action
  * @param  bool   $commit         false = dry-run report only, true = apply in a transaction
- * @return array                  Report: rows[] {line, ref, sub, action, changes[], detail},
+ * @return array{rows:array<int,array{line:int,ref:string,sub:string,action:string,changes:array<int,array{0:string,1:string,2:string}>,detail:string}>,errors:string[],counts:array<string,int>} Report: rows[] {line, ref, sub, action, changes[], detail},
  *                                errors[] strings, counts {create, update, clear, unchanged, skip, value_add}
  */
 function binloc_assign_import_run($db, $fk_entrepot, $parsed, $create_missing, $user, $commit = false)
@@ -557,6 +557,7 @@ function binloc_assign_import_run($db, $fk_entrepot, $parsed, $create_missing, $
 	}
 	if ($col_product === null) {
 		$report['errors'][] = $langs->trans('CsvMissingProductColumn');
+		return $report;
 	}
 	if (!empty($report['errors'])) {
 		return $report;
@@ -593,7 +594,7 @@ function binloc_assign_import_run($db, $fk_entrepot, $parsed, $create_missing, $
 		$fk_product_lot = 0;
 		if ($lot_batch !== '') {
 			$sql = "SELECT rowid FROM ".MAIN_DB_PREFIX."product_lot";
-			$sql .= " WHERE fk_product = ".$fk_product." AND batch = '".$db->escape($lot_batch)."'";
+			$sql .= " WHERE fk_product = ".((int) $fk_product)." AND batch = '".$db->escape($lot_batch)."'";
 			$sql .= " AND entity IN (".getEntity('stock').")";
 			$resql = $db->query($sql);
 			$obj = $resql ? $db->fetch_object($resql) : null;
@@ -636,7 +637,7 @@ function binloc_assign_import_run($db, $fk_entrepot, $parsed, $create_missing, $
 				foreach ($cfg->options as $opt) {
 					if (strtolower($opt->value) === strtolower($value)) {
 						$opt_id = $opt->id;
-						$value = $opt->value; // the stored spelling, not the file's case
+						$value = (string) $opt->value; // the stored spelling, not the file's case
 						break;
 					}
 				}
@@ -765,9 +766,9 @@ function binloc_assign_snapshot($loc)
 /**
  * Field-by-field differences between two assignment snapshots
  *
- * @param  array $levels Level configs of the warehouse (id => cfg), in position order
- * @param  array $before From binloc_assign_snapshot()
- * @param  array $after  From binloc_assign_snapshot()
+ * @param  array<int,stdClass> $levels Level configs of the warehouse (id => cfg), in position order
+ * @param  array{values:array<int,array{key:string,display:string}>,note:string} $before From binloc_assign_snapshot()
+ * @param  array{values:array<int,array{key:string,display:string}>,note:string} $after  From binloc_assign_snapshot()
  * @return array<int,array{0:string,1:string,2:string}> [field, from, to]; '' = empty
  */
 function binloc_assign_diff($levels, $before, $after)
@@ -791,8 +792,8 @@ function binloc_assign_diff($levels, $before, $after)
 /**
  * One-line "Level: value / Level: value" of a snapshot (for unchanged rows)
  *
- * @param  array $levels   Level configs of the warehouse (id => cfg)
- * @param  array $snapshot From binloc_assign_snapshot()
+ * @param  array<int,stdClass> $levels Level configs of the warehouse (id => cfg)
+ * @param  array{values:array<int,array{key:string,display:string}>,note:string} $snapshot From binloc_assign_snapshot()
  * @return string
  */
 function binloc_assign_summary($levels, $snapshot)

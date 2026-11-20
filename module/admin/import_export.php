@@ -12,9 +12,21 @@
  */
 
 $res = 0;
-if (!$res && file_exists("../../main.inc.php")) { $res = @include "../../main.inc.php"; }
+if (file_exists("../../main.inc.php")) { $res = @include "../../main.inc.php"; }
 if (!$res && file_exists("../../../main.inc.php")) { $res = @include "../../../main.inc.php"; }
 if (!$res) { die("Include of main fails"); }
+/**
+ * @var Conf $conf
+ * @var DoliDB $db
+ * @var HookManager $hookmanager
+ * @var Translate $langs
+ * @var User $user
+ */
+'@phan-var-force Conf $conf';
+'@phan-var-force DoliDB $db';
+'@phan-var-force HookManager $hookmanager';
+'@phan-var-force Translate $langs';
+'@phan-var-force User $user';
 
 require_once DOL_DOCUMENT_ROOT.'/core/lib/admin.lib.php';
 dol_include_once('/binloc/lib/binloc.lib.php');
@@ -92,7 +104,7 @@ function binloc_ie_change_actions()
 /**
  * Number of rows/values an import report would write (or wrote)
  *
- * @param  array $report Report from a binloc_*_import_run() call
+ * @param  array{rows:array<int,array{line:int,ref:string,sub:string,action:string,changes:array<int,array{0:string,1:string,2:string}>,detail:string}>,errors:string[],counts:array<string,int>} $report Report from a binloc_*_import_run() call
  * @return int
  */
 function binloc_ie_change_count($report)
@@ -128,7 +140,7 @@ function binloc_ie_badge($action)
 /**
  * Render a row's field changes: "Field: old → new", one per line
  *
- * @param  array $changes [field, from, to] triples ('' = empty)
+ * @param  array<int,array{0:string,1:string,2:string}> $changes [field, from, to] triples ('' = empty)
  * @return string         HTML
  */
 function binloc_ie_changes_html($changes)
@@ -152,7 +164,7 @@ function binloc_ie_changes_html($changes)
 /**
  * Print report rows as a table
  *
- * @param  array  $rows Report rows
+ * @param  array<int,array{line:int,ref:string,sub:string,action:string,changes:array<int,array{0:string,1:string,2:string}>,detail:string}> $rows Report rows
  * @param  string $kind 'layout' or 'assign'
  * @param  int    $max  Rows shown before "… +N more"
  * @return void
@@ -188,7 +200,7 @@ function binloc_ie_print_rows($rows, $kind, $max = 300)
  * Render an import report: what state it is in, a count per kind of change,
  * the problems, the rows that change, and the rows that don't (folded away)
  *
- * @param  array  $report Report from a binloc_*_import_run() call
+ * @param  array{rows:array<int,array{line:int,ref:string,sub:string,action:string,changes:array<int,array{0:string,1:string,2:string}>,detail:string}>,errors:string[],counts:array<string,int>} $report Report from a binloc_*_import_run() call
  * @param  string $kind   'layout' or 'assign'
  * @param  bool   $applied true when the report is the result of an apply
  * @return void
@@ -319,7 +331,7 @@ if ($action === 'apply_layout' && $can_admin) {
 }
 
 if ($action === 'preview_assign' && $can_write && $fk_entrepot > 0) {
-	$create_missing = GETPOSTINT('create_missing');
+	$create_missing = (GETPOSTINT('create_missing') != 0);
 	$token = binloc_ie_store_upload($tempdir);
 	$parsed = $token ? binloc_csv_read($tempdir.'/'.$token) : false;
 	if (!$parsed) {
@@ -330,7 +342,7 @@ if ($action === 'preview_assign' && $can_write && $fk_entrepot > 0) {
 }
 
 if ($action === 'apply_assign' && $can_write && $fk_entrepot > 0) {
-	$create_missing = GETPOSTINT('create_missing');
+	$create_missing = (GETPOSTINT('create_missing') != 0);
 	$path = binloc_ie_token_path($tempdir, GETPOST('csvtoken', 'alphanohtml'));
 	$parsed = $path ? binloc_csv_read($path) : false;
 	if (!$parsed) {

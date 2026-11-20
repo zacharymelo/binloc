@@ -10,7 +10,7 @@
 /**
  * Build admin page tab header
  *
- * @return array Array of tab definitions
+ * @return array<int,array<int,string>> Array of tab definitions
  */
 function binloc_admin_prepare_head()
 {
@@ -77,7 +77,7 @@ function binloc_print_assets()
  *
  * @param  DoliDB $db           Database handler
  * @param  int    $fk_entrepot  Warehouse ID
- * @return array                level rowid => stdClass config map (position order)
+ * @return array<int,stdClass>  level rowid => stdClass config map (position order)
  */
 function binloc_get_warehouse_levels($db, $fk_entrepot)
 {
@@ -206,11 +206,11 @@ function binloc_render_level_input($level_cfg, $prefix = '', $current = null, $c
 /**
  * Render the full set of level inputs for a warehouse
  *
- * @param  array  $level_cfgs Level configs keyed by rowid (fetchByWarehouse output)
- * @param  string $prefix     Input name prefix
- * @param  array  $values     Current values keyed by level rowid ({fk_option, value, display})
- * @param  string $css_class  Optional CSS class override
- * @return string             HTML fragment
+ * @param  array<int,stdClass> $level_cfgs Level configs keyed by rowid (fetchByWarehouse output)
+ * @param  string              $prefix     Input name prefix
+ * @param  array<int,stdClass> $values     Current values keyed by level rowid ({fk_option, value, display})
+ * @param  string              $css_class  Optional CSS class override
+ * @return string                          HTML fragment
  */
 function binloc_render_level_inputs($level_cfgs, $prefix = '', $values = array(), $css_class = 'flat width100 binloc-level-input')
 {
@@ -227,8 +227,8 @@ function binloc_render_level_inputs($level_cfgs, $prefix = '', $values = array()
  * that has a description is listed as "code = description", grouped by level.
  * Returns '' when no option has a description, so pages can print it blindly.
  *
- * @param  array $level_cfgs Level configs keyed by rowid (fetchByWarehouse output)
- * @return string            HTML fragment or ''
+ * @param  array<int,stdClass> $level_cfgs Level configs keyed by rowid (fetchByWarehouse output)
+ * @return string                          HTML fragment or ''
  */
 function binloc_render_level_legend($level_cfgs)
 {
@@ -267,8 +267,8 @@ function binloc_render_level_legend($level_cfgs)
  * Compact bin code: the level values concatenated in position order with no
  * separator (e.g. values A, L, 2, 5, 3 -> "AL253"). Used on bin labels.
  *
- * @param  array $level_cfgs Level configs keyed by rowid (fetchByWarehouse output)
- * @param  array $values     Values keyed by level rowid ({fk_option, value, display})
+ * @param  array<int,stdClass> $level_cfgs Level configs keyed by rowid (fetchByWarehouse output)
+ * @param  array<int,stdClass> $values     Values keyed by level rowid ({fk_option, value, display})
  * @return string
  */
 function binloc_compact_code($level_cfgs, $values)
@@ -305,7 +305,7 @@ function binloc_ensure_warehouse_code_extrafield($db)
 	if (!empty($ef->attributes['entrepot']['type']['binloc_code'])) {
 		return 1;
 	}
-	$result = $ef->addExtraField('binloc_code', 'BinCodePrefix', 'varchar', 100, 8, 'entrepot', 0, 0, '', '', 1, '', 1, 'BinCodePrefixHelp', '', '', 'binloc@binloc', '1');
+	$result = $ef->addExtraField('binloc_code', 'BinCodePrefix', 'varchar', 100, '8', 'entrepot', 0, 0, '', '', 1, '', '1', 'BinCodePrefixHelp', '', '', 'binloc@binloc', '1');
 	return ($result > 0) ? 1 : -1;
 }
 
@@ -565,7 +565,7 @@ function binloc_css_num($value)
  * can be cut with a single slice between labels.
  *
  * @param  stdClass $layout Layout object
- * @return string           <style> block
+ * @return string           HTML style block
  */
 function binloc_label_layout_css($layout)
 {
@@ -598,7 +598,7 @@ function binloc_label_layout_css($layout)
  *        driver's paper size governs and the label flows from the top.
  *
  * @param  stdClass $layout Layout object
- * @return string           <style> block
+ * @return string           HTML style block
  */
 function binloc_label_print_css($layout)
 {
@@ -623,9 +623,9 @@ function binloc_label_print_css($layout)
 /**
  * Collect posted level values for a warehouse's levels
  *
- * @param  array  $level_cfgs Level configs keyed by rowid
- * @param  string $prefix     Input name prefix used at render time
- * @return array              level rowid => raw posted value
+ * @param  array<int,stdClass> $level_cfgs Level configs keyed by rowid
+ * @param  string              $prefix     Input name prefix used at render time
+ * @return array<int,string>               level rowid => raw posted value
  */
 function binloc_get_posted_level_values($level_cfgs, $prefix = '')
 {
@@ -666,7 +666,7 @@ function binloc_format_location($db, $fk_product, $fk_entrepot)
  * Get all active warehouses (no parent filter — all warehouses, for the level config page)
  *
  * @param  DoliDB $db Database handler
- * @return array      Array of warehouse objects (rowid, ref, lieu, stock)
+ * @return stdClass[]  Array of warehouse objects (rowid, ref, lieu, stock)
  */
 function binloc_get_warehouses($db)
 {
@@ -737,7 +737,7 @@ function binloc_render_warehouse_select($db, $name, $selected = 0, $css_class = 
  * @param  string $sortorder    Sort order
  * @param  int    $limit        Max rows
  * @param  int    $offset       Offset
- * @return array                Array of product objects with stock and location data
+ * @return stdClass[]           Array of product objects with stock and location data
  */
 function binloc_get_products_in_warehouse($db, $fk_entrepot, $search = '', $sortfield = 'p.ref', $sortorder = 'ASC', $limit = 0, $offset = 0)
 {

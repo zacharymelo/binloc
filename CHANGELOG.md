@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.22.1] - 2026-11-20
+
+### Fixed
+- **Reception Bin Placement tab failed with an error page (HTTP 500) on Dolibarr 23.** The tab did not load the supplier dispatch classes that Dolibarr needs to read a reception's lines. It now loads them, as the place sheet shortcut already did.
+
+### Changed
+- **Code quality pass, no change to features.** The whole module now passes Dolibarr's static checks (phpcs, phpstan, phan): page variables are declared, array types documented, and values entering SQL are explicitly cast or sanitized.
+
 ## [2.22.0] - 2026-11-20
 
 ### Added

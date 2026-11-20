@@ -39,7 +39,9 @@ class InterfaceBinlocTrigger extends DolibarrTriggers
 		$this->name        = preg_replace('/^Interface/i', '', get_class($this));
 		$this->family      = 'stock';
 		$this->description = 'Binloc trigger — clears bin locations on stock movements and lot deletion';
-		$this->version     = '2.22.0';
+		// Core types this as its keywords only, but getVersion() returns any other value as is
+		// @phan-suppress-next-line PhanTypeMismatchPropertyProbablyReal
+		$this->version     = '2.22.1'; // @phpstan-ignore assign.propertyType
 		$this->picto       = 'stock';
 	}
 
@@ -95,7 +97,7 @@ class InterfaceBinlocTrigger extends DolibarrTriggers
 
 			if ($is_out) {
 				$sql = "SELECT rowid FROM ".MAIN_DB_PREFIX."product_lot";
-				$sql .= " WHERE fk_product = ".$fk_product;
+				$sql .= " WHERE fk_product = ".((int) $fk_product);
 				$sql .= " AND batch = '".$this->db->escape($batch)."'";
 				$sql .= " AND entity IN (".getEntity('stock').")";
 
@@ -108,7 +110,7 @@ class InterfaceBinlocTrigger extends DolibarrTriggers
 						// Clear this lot's location — the serial has moved away
 						$del = "DELETE FROM ".MAIN_DB_PREFIX."binloc_product_location";
 						$del .= " WHERE fk_product_lot = ".(int) $lot_obj->rowid;
-						$del .= " AND fk_entrepot = ".$fk_entrepot;
+						$del .= " AND fk_entrepot = ".((int) $fk_entrepot);
 						$del .= " AND entity IN (".getEntity('stock').")";
 						$this->db->query($del);
 					}
@@ -123,8 +125,8 @@ class InterfaceBinlocTrigger extends DolibarrTriggers
 		}
 
 		$sql = "SELECT reel FROM ".MAIN_DB_PREFIX."product_stock";
-		$sql .= " WHERE fk_product = ".$fk_product;
-		$sql .= " AND fk_entrepot = ".$fk_entrepot;
+		$sql .= " WHERE fk_product = ".((int) $fk_product);
+		$sql .= " AND fk_entrepot = ".((int) $fk_entrepot);
 
 		$resql = $this->db->query($sql);
 		if (!$resql) {

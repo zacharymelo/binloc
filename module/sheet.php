@@ -13,9 +13,21 @@
  */
 
 $res = 0;
-if (!$res && file_exists("../main.inc.php")) { $res = @include "../main.inc.php"; }
+if (file_exists("../main.inc.php")) { $res = @include "../main.inc.php"; }
 if (!$res && file_exists("../../main.inc.php")) { $res = @include "../../main.inc.php"; }
 if (!$res) { die("Include of main fails"); }
+/**
+ * @var Conf $conf
+ * @var DoliDB $db
+ * @var HookManager $hookmanager
+ * @var Translate $langs
+ * @var User $user
+ */
+'@phan-var-force Conf $conf';
+'@phan-var-force DoliDB $db';
+'@phan-var-force HookManager $hookmanager';
+'@phan-var-force Translate $langs';
+'@phan-var-force User $user';
 
 dol_include_once('/binloc/lib/binloc_sheets.lib.php');
 
@@ -103,7 +115,7 @@ $cardurl = DOL_URL_ROOT.$def['card'].'?id='.((int) $object->id);
 
 // Output language: the third party's when multilang is on, as the Documents block does
 $outputlangs = $langs;
-if (getDolGlobalInt('MAIN_MULTILANGS') && method_exists($object, 'fetch_thirdparty')) {
+if (getDolGlobalInt('MAIN_MULTILANGS')) {
 	$object->fetch_thirdparty();
 	if (!empty($object->thirdparty->default_lang)) {
 		$outputlangs = new Translate('', $conf);

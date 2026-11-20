@@ -41,7 +41,7 @@ class BinlocProductLocation extends CommonObject
 	/** @var int Lot/serial ID, 0 for non-serialized products */
 	public $fk_product_lot = 0;
 
-	/** @var array fk_level => stdClass {fk_option, value, display} */
+	/** @var array<int,stdClass> fk_level => stdClass {fk_option, value, display} */
 	public $values = array();
 
 	/** @var string */
@@ -129,8 +129,8 @@ class BinlocProductLocation extends CommonObject
 	/**
 	 * Populate $this->values from a request-style array of raw inputs.
 	 *
-	 * @param  array $level_cfgs Level configs keyed by rowid (fetchByWarehouse output)
-	 * @param  array $raw_values level rowid => raw input (option id or string)
+	 * @param  array<int,stdClass> $level_cfgs Level configs keyed by rowid (fetchByWarehouse output)
+	 * @param  array<int,int|string> $raw_values level rowid => raw input (option id or string)
 	 * @return int               1 if OK, -1 on first validation error
 	 */
 	public function setRawValues($level_cfgs, $raw_values)
@@ -426,7 +426,7 @@ class BinlocProductLocation extends CommonObject
 	 * Load the level values of one assignment
 	 *
 	 * @param  int   $fk_location Assignment rowid
-	 * @return array              fk_level => stdClass {fk_option, value, display}
+	 * @return array<int,stdClass> fk_level => stdClass {fk_option, value, display}
 	 */
 	private function loadValues($fk_location)
 	{
@@ -523,7 +523,7 @@ class BinlocProductLocation extends CommonObject
 	/**
 	 * Attach ->values to a list of result rows (one IN query, keyed by rowid)
 	 *
-	 * @param  array $rows Rows with ->rowid, modified in place
+	 * @param  stdClass[] $rows Rows with ->rowid, modified in place
 	 * @return void
 	 */
 	public function loadValuesForRows($rows)
@@ -542,7 +542,7 @@ class BinlocProductLocation extends CommonObject
 		$sql = "SELECT v.fk_location, v.fk_level, v.fk_option, v.value, o.value as option_value, o.description as option_desc";
 		$sql .= " FROM ".MAIN_DB_PREFIX."binloc_location_value as v";
 		$sql .= " LEFT JOIN ".MAIN_DB_PREFIX."binloc_level_options as o ON o.rowid = v.fk_option";
-		$sql .= " WHERE v.fk_location IN (".implode(',', $ids).")";
+		$sql .= " WHERE v.fk_location IN (".$this->db->sanitize(implode(',', $ids)).")";
 
 		$resql = $this->db->query($sql);
 		if (!$resql) {
@@ -566,7 +566,7 @@ class BinlocProductLocation extends CommonObject
 	 * warehouse_label, stock, note, location (formatted string), values map.
 	 *
 	 * @param  int   $fk_product Product ID
-	 * @return array             Array of result objects
+	 * @return stdClass[]        Array of result objects
 	 */
 	public function fetchAllByProduct($fk_product)
 	{
@@ -620,7 +620,7 @@ class BinlocProductLocation extends CommonObject
 	 * (exact match, list levels) or 'value' => string (partial match,
 	 * text/number levels). Filters on different levels AND together.
 	 *
-	 * @param  array  $level_filters Filters as described above
+	 * @param  array<int,array{fk_level?:int,fk_option?:int,value?:string}> $level_filters Filters as described above
 	 * @return string                SQL fragment starting with " AND", or ''
 	 */
 	private function levelFilterSql($level_filters)
@@ -632,14 +632,14 @@ class BinlocProductLocation extends CommonObject
 				continue;
 			}
 			if (!empty($filter['fk_option'])) {
-				$cond = "v.fk_option = ".(int) $filter['fk_option'];
+				$clause = "v.fk_option = ".(int) $filter['fk_option'];
 			} elseif (isset($filter['value']) && $filter['value'] !== '') {
-				$cond = "v.value LIKE '%".$this->db->escape($filter['value'])."%'";
+				$clause = "v.value LIKE '%".$this->db->escape($filter['value'])."%'";
 			} else {
 				continue;
 			}
 			$sql .= " AND EXISTS (SELECT 1 FROM ".MAIN_DB_PREFIX."binloc_location_value as v";
-			$sql .= " WHERE v.fk_location = pl.rowid AND v.fk_level = ".$fk_level." AND ".$cond.")";
+			$sql .= " WHERE v.fk_location = pl.rowid AND v.fk_level = ".((int) $fk_level)." AND ".$clause.")";
 		}
 		return $sql;
 	}
@@ -653,8 +653,8 @@ class BinlocProductLocation extends CommonObject
 	 * @param  string $sortorder     Sort order (ASC/DESC)
 	 * @param  int    $limit         Max rows
 	 * @param  int    $offset        Offset
-	 * @param  array  $level_filters Optional bin filters (see levelFilterSql)
-	 * @return array                 Array of result objects (see fetchAllByProduct)
+	 * @param  array<int,array{fk_level?:int,fk_option?:int,value?:string}> $level_filters Optional bin filters (see levelFilterSql)
+	 * @return stdClass[]            Array of result objects (see fetchAllByProduct)
 	 */
 	public function fetchAllByWarehouse($fk_entrepot, $search = '', $sortfield = 'p.ref', $sortorder = 'ASC', $limit = 0, $offset = 0, $level_filters = array())
 	{
@@ -679,7 +679,8 @@ class BinlocProductLocation extends CommonObject
 			$sql .= " OR lot.batch LIKE '%".$this->db->escape($search)."%')";
 		}
 
-		$sql .= $this->levelFilterSql($level_filters);
+		$morewhere = $this->levelFilterSql($level_filters);
+		$sql .= $morewhere;
 
 		$sql .= $this->db->order($sortfield, $sortorder);
 		if ($limit > 0) {
@@ -717,7 +718,7 @@ class BinlocProductLocation extends CommonObject
 	 *
 	 * @param  int    $fk_entrepot   Warehouse ID
 	 * @param  string $search        Optional search filter
-	 * @param  array  $level_filters Optional bin filters (see levelFilterSql)
+	 * @param  array<int,array{fk_level?:int,fk_option?:int,value?:string}> $level_filters Optional bin filters (see levelFilterSql)
 	 * @return int                    Count or -1 on error
 	 */
 	public function countByWarehouse($fk_entrepot, $search = '', $level_filters = array())
@@ -736,7 +737,8 @@ class BinlocProductLocation extends CommonObject
 			$sql .= " OR lot.batch LIKE '%".$this->db->escape($search)."%')";
 		}
 
-		$sql .= $this->levelFilterSql($level_filters);
+		$morewhere = $this->levelFilterSql($level_filters);
+		$sql .= $morewhere;
 
 		$resql = $this->db->query($sql);
 		if (!$resql) {
@@ -822,7 +824,7 @@ class BinlocProductLocation extends CommonObject
 	/**
 	 * Get formatted location string for display
 	 *
-	 * @param  array $level_cfgs Level configs keyed by rowid (fetchByWarehouse output)
+	 * @param  array<int,stdClass|string> $level_cfgs Level configs keyed by rowid (fetchByWarehouse output)
 	 * @return string             e.g. "Row: A / Bay: 3 / Shelf: 2"
 	 */
 	public function getFormattedLocation($level_cfgs)
