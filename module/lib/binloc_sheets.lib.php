@@ -18,6 +18,11 @@
  * the product has a bin in that warehouse — typical for serials that did not
  * exist before the reception, or lots whose assignment was cleared when stock
  * left on a validated shipment.
+ *
+ * Kits (products with sub-products): a heading row (kit_header) followed by
+ * the rows of its components. kit_path lists the kit_id of every kit a row is
+ * inside, outermost first (a heading's ends with its own), and kit_depth is
+ * the indent. See docs/KIT-PICK-SHEETS.md.
  */
 
 dol_include_once('/binloc/lib/binloc.lib.php');
@@ -195,7 +200,146 @@ function binloc_sheet_row($fk_product, $fk_entrepot, $fk_product_lot, $batch, $q
 	$row->note            = '';
 	$row->status          = 'none';
 	$row->bins_elsewhere  = array(); // warehouse refs where the product has a bin, when it has none here
+	$row->kit_id          = 0;       // heading rows: identifier of the kit block
+	$row->kit_path        = array(); // kit_id of each enclosing kit, outermost first
+	$row->kit_header      = false;   // true = kit heading, not a pick line
+	$row->kit_depth       = 0;       // indent steps
 	return $row;
+}
+
+/**
+ * True when pick sheets list a kit's components: Dolibarr moves the stock of
+ * the components (not of a unit kept in stock) when a kit leaves
+ *
+ * @return bool
+ */
+function binloc_sheet_kits_enabled()
+{
+	if (!getDolGlobalInt('PRODUIT_SOUSPRODUITS')) {
+		return false;
+	}
+	return !getDolGlobalString('INDEPENDANT_SUBPRODUCT_STOCK') && !getDolGlobalString('PRODUIT_SOUSPRODUITS_ALWAYS_DISABLE_CHILDREN_STOCK_MOVE');
+}
+
+/**
+ * Components of kits, for the given products and every kit below them
+ *
+ * One query per depth of the tree, not per product. Empty when kits are not
+ * expanded (see binloc_sheet_kits_enabled()).
+ *
+ * @param  DoliDB $db          Database handler
+ * @param  int[]  $product_ids Products that may be kits
+ * @return array<int,stdClass[]> kit product ID => components {fk_product, qty, product_type, lot_managed}
+ */
+function binloc_sheet_kit_tree($db, $product_ids)
+{
+	$tree = array();
+	if (!binloc_sheet_kits_enabled()) {
+		return $tree;
+	}
+
+	$batch_enabled = isModEnabled('productbatch');
+	$seen = array();
+	$todo = array_unique(array_filter(array_map('intval', $product_ids)));
+	$depth = 0;
+	while (!empty($todo) && $depth < 30) {
+		$depth++;
+		foreach ($todo as $id) {
+			$seen[$id] = true;
+		}
+		$sql = "SELECT pa.fk_product_pere, pa.fk_product_fils, pa.qty, p.fk_product_type, p.tobatch";
+		$sql .= " FROM ".MAIN_DB_PREFIX."product_association as pa";
+		$sql .= " INNER JOIN ".MAIN_DB_PREFIX."product as p ON p.rowid = pa.fk_product_fils";
+		$sql .= " WHERE pa.fk_product_pere IN (".$db->sanitize(implode(',', $todo)).")";
+		$sql .= " ORDER BY pa.rang ASC, pa.rowid ASC";
+		$resql = $db->query($sql);
+		if (!$resql) {
+			dol_syslog('binloc_sheet_kit_tree '.$db->lasterror(), LOG_ERR);
+			break;
+		}
+		$todo = array();
+		while ($obj = $db->fetch_object($resql)) {
+			$child = new stdClass();
+			$child->fk_product   = (int) $obj->fk_product_fils;
+			$child->qty          = (float) $obj->qty;
+			$child->product_type = (int) $obj->fk_product_type;
+			$child->lot_managed  = $batch_enabled && (int) $obj->tobatch > 0;
+			$tree[(int) $obj->fk_product_pere][] = $child;
+			if (!isset($seen[$child->fk_product])) {
+				$todo[$child->fk_product] = $child->fk_product;
+			}
+		}
+		$db->free($resql);
+	}
+	return $tree;
+}
+
+/**
+ * New kit heading row, inside the kits of $kit_path
+ *
+ * @param  int   $fk_product Kit product ID
+ * @param  float $qty        Number of kits
+ * @param  int[] $kit_path   kit_id of each enclosing kit, outermost first
+ * @return stdClass
+ */
+function binloc_sheet_kit_header($fk_product, $qty, $kit_path)
+{
+	static $next = 0;
+
+	$next++;
+	$row = binloc_sheet_row($fk_product, 0, 0, '', $qty);
+	$row->kit_id     = $next;
+	$row->kit_header = true;
+	$row->kit_depth  = count($kit_path);
+	$kit_path[] = $next;
+	$row->kit_path   = $kit_path;
+	return $row;
+}
+
+/**
+ * Allocate a product from stock into sheet rows; a kit becomes a heading row
+ * followed by the rows of its components (kits inside it included)
+ *
+ * @param  DoliDB                $db           Database handler
+ * @param  stdClass[]            $rows         Sheet rows, appended to
+ * @param  array<int,stdClass[]> $tree         From binloc_sheet_kit_tree()
+ * @param  int                   $fk_product   Product ID
+ * @param  bool                  $lots         Product is lot/serial managed
+ * @param  float                 $qty          Quantity to allocate
+ * @param  int                   $fk_warehouse Warehouse the document names (0 = none)
+ * @param  int[]                 $kit_path     kit_id of each enclosing kit, outermost first
+ * @param  int[]                 $ancestors    Product IDs of the enclosing kits (loop guard)
+ * @return void
+ */
+function binloc_sheet_pick_line($db, &$rows, $tree, $fk_product, $lots, $qty, $fk_warehouse, $kit_path = array(), $ancestors = array())
+{
+	$fk_product = (int) $fk_product;
+
+	if (!empty($tree[$fk_product]) && !in_array($fk_product, $ancestors, true)) {
+		$header = binloc_sheet_kit_header($fk_product, $qty, $kit_path);
+		$rows[] = $header;
+		$start = count($rows);
+		$ancestors[] = $fk_product;
+		foreach ($tree[$fk_product] as $child) {
+			if ($child->product_type !== 0 || $child->qty <= 0 || in_array($child->fk_product, $ancestors, true)) {
+				continue;
+			}
+			binloc_sheet_pick_line($db, $rows, $tree, $child->fk_product, $child->lot_managed, $qty * $child->qty, $fk_warehouse, $header->kit_path, $ancestors);
+		}
+		if (count($rows) > $start) {
+			return;
+		}
+		// Nothing to pick inside (services only): list it as an ordinary product
+		array_pop($rows);
+	}
+
+	$start = count($rows);
+	binloc_sheet_pick($db, $rows, $fk_product, $lots, $qty, $fk_warehouse);
+	$nb = count($rows);
+	for ($i = $start; $i < $nb; $i++) {
+		$rows[$i]->kit_path  = $kit_path;
+		$rows[$i]->kit_depth = count($kit_path);
+	}
 }
 
 /**
@@ -234,6 +378,7 @@ function binloc_sheet_rows_from_order($db, $order)
 		}
 	}
 	$tobatch = binloc_sheet_products_tobatch($db, $product_ids);
+	$tree = binloc_sheet_kit_tree($db, $product_ids);
 
 	$fk_warehouse = empty($order->fk_warehouse) ? 0 : (int) $order->fk_warehouse;
 
@@ -249,7 +394,7 @@ function binloc_sheet_rows_from_order($db, $order)
 			continue;
 		}
 
-		binloc_sheet_pick($db, $rows, $fk_product, !empty($tobatch[$fk_product]), $remaining, $fk_warehouse);
+		binloc_sheet_pick_line($db, $rows, $tree, $fk_product, !empty($tobatch[$fk_product]), $remaining, $fk_warehouse);
 	}
 
 	binloc_sheet_attach_locations($db, $rows);
@@ -261,7 +406,8 @@ function binloc_sheet_rows_from_order($db, $order)
  *
  * Read straight from expeditiondet / expeditiondet_batch rather than
  * Expedition::fetch_lines(), which merges multi-warehouse splits of one
- * order line. Kit sub-lines (fk_parent, Dolibarr 22 and later) are skipped.
+ * order line. A kit's sub-lines (fk_parent, Dolibarr 22 and later) are listed
+ * under a heading row; a kit line without sub-lines is expanded from stock.
  *
  * @param  DoliDB     $db  Database handler
  * @param  Expedition $exp Shipment
@@ -274,22 +420,24 @@ function binloc_sheet_rows_from_shipment($db, $exp)
 		return $rows;
 	}
 
+	// fk_parent only exists from Dolibarr 22: naming it on 21 would fail the
+	// whole query and the sheet would come back empty. Nothing is lost —
+	// shipment kit sub-lines arrived with the column
+	$has_parent = binloc_sheet_column_exists($db, 'expeditiondet', 'fk_parent');
+
 	$sql = "SELECT ed.rowid as line_id, ed.qty as line_qty, ed.fk_entrepot,";
-	$sql .= " p.rowid as fk_product, p.fk_product_type,";
+	$sql .= " p.rowid as fk_product, p.fk_product_type, p.tobatch,";
 	$sql .= " eb.rowid as batch_id, eb.batch, eb.qty as batch_qty, eb.fk_warehouse as batch_wh,";
 	$sql .= " pl.rowid as fk_product_lot";
+	if ($has_parent) {
+		$sql .= ", ed.fk_parent";
+	}
 	$sql .= " FROM ".MAIN_DB_PREFIX."expeditiondet as ed";
 	$sql .= " LEFT JOIN ".MAIN_DB_PREFIX."commandedet as cd ON (cd.rowid = ed.fk_elementdet AND ed.element_type = 'commande')";
 	$sql .= " INNER JOIN ".MAIN_DB_PREFIX."product as p ON p.rowid = COALESCE(ed.fk_product, cd.fk_product)";
 	$sql .= " LEFT JOIN ".MAIN_DB_PREFIX."expeditiondet_batch as eb ON eb.fk_expeditiondet = ed.rowid";
 	$sql .= " LEFT JOIN ".MAIN_DB_PREFIX."product_lot as pl ON (pl.fk_product = p.rowid AND pl.batch = eb.batch AND pl.entity IN (".getEntity('stock')."))";
 	$sql .= " WHERE ed.fk_expedition = ".((int) $exp->id);
-	// fk_parent only exists from Dolibarr 22: naming it on 21 would fail the
-	// whole query and the sheet would come back empty. Nothing is lost —
-	// shipment kit sub-lines arrived with the column
-	if (binloc_sheet_column_exists($db, 'expeditiondet', 'fk_parent')) {
-		$sql .= " AND (ed.fk_parent IS NULL OR ed.fk_parent = 0)";
-	}
 	$sql .= " ORDER BY ed.rang ASC, ed.rowid ASC, eb.rowid ASC";
 
 	$resql = $db->query($sql);
@@ -297,25 +445,109 @@ function binloc_sheet_rows_from_shipment($db, $exp)
 		dol_syslog('binloc_sheet_rows_from_shipment '.$db->lasterror(), LOG_ERR);
 		return $rows;
 	}
+	$batch_enabled = isModEnabled('productbatch');
+	$lines = array();
+	$product_ids = array();
 	while ($obj = $db->fetch_object($resql)) {
-		if ((int) $obj->fk_product_type !== 0) {
-			continue;
+		$id = (int) $obj->line_id;
+		if (!isset($lines[$id])) {
+			$line = new stdClass();
+			$line->id           = $id;
+			$line->fk_parent    = $has_parent ? (int) $obj->fk_parent : 0;
+			$line->fk_product   = (int) $obj->fk_product;
+			$line->product_type = (int) $obj->fk_product_type;
+			$line->lot_managed  = $batch_enabled && (int) $obj->tobatch > 0;
+			$line->fk_entrepot  = (int) $obj->fk_entrepot;
+			$line->qty          = (float) $obj->line_qty;
+			$line->batches      = array();
+			$lines[$id] = $line;
+			$product_ids[] = $line->fk_product;
 		}
 		if (!empty($obj->batch_id)) {
-			$wh  = !empty($obj->batch_wh) ? (int) $obj->batch_wh : (int) $obj->fk_entrepot;
-			$row = binloc_sheet_row($obj->fk_product, $wh, (int) $obj->fk_product_lot, (string) $obj->batch, (float) $obj->batch_qty);
-		} else {
-			$row = binloc_sheet_row($obj->fk_product, (int) $obj->fk_entrepot, 0, '', (float) $obj->line_qty);
+			$lines[$id]->batches[] = $obj;
 		}
-		if ($row->qty <= 0) {
-			continue;
-		}
-		$rows[] = $row;
 	}
 	$db->free($resql);
 
+	// Sub-lines per parent line; a sub-line whose parent is missing is listed on its own
+	$children = array();
+	$top = array();
+	foreach ($lines as $id => $line) {
+		if ($line->fk_parent > 0 && isset($lines[$line->fk_parent])) {
+			$children[$line->fk_parent][] = $id;
+		} else {
+			$top[] = $id;
+		}
+	}
+
+	$tree = binloc_sheet_kit_tree($db, $product_ids);
+	foreach ($top as $id) {
+		binloc_sheet_shipment_line_rows($db, $rows, $lines, $children, $tree, $id);
+	}
+
 	binloc_sheet_attach_locations($db, $rows);
 	return $rows;
+}
+
+/**
+ * Sheet rows of one shipment line: its warehouse and lots, or for a kit a
+ * heading row followed by the rows of its sub-lines
+ *
+ * @param  DoliDB                $db       Database handler
+ * @param  stdClass[]            $rows     Sheet rows, appended to
+ * @param  array<int,stdClass>   $lines    Shipment lines by ID {fk_product, product_type, lot_managed, fk_entrepot, qty, batches}
+ * @param  array<int,int[]>      $children Sub-line IDs by parent line ID
+ * @param  array<int,stdClass[]> $tree     From binloc_sheet_kit_tree(), for kit lines without sub-lines
+ * @param  int                   $id       Line ID
+ * @param  int[]                 $kit_path kit_id of each enclosing kit, outermost first
+ * @return void
+ */
+function binloc_sheet_shipment_line_rows($db, &$rows, $lines, $children, $tree, $id, $kit_path = array())
+{
+	$line = $lines[$id];
+
+	if (!empty($children[$id]) && count($kit_path) < 30) {
+		$header = binloc_sheet_kit_header($line->fk_product, $line->qty, $kit_path);
+		$rows[] = $header;
+		$start = count($rows);
+		foreach ($children[$id] as $child_id) {
+			binloc_sheet_shipment_line_rows($db, $rows, $lines, $children, $tree, $child_id, $header->kit_path);
+		}
+		if (count($rows) > $start) {
+			return;
+		}
+		// Nothing to pick inside (services only): list the line itself
+		array_pop($rows);
+	}
+
+	if ($line->product_type !== 0) {
+		return;
+	}
+
+	if (empty($line->batches) && !empty($tree[$line->fk_product])) {
+		// Kit without sub-lines (Dolibarr 21, or made before the upgrade)
+		if ($line->qty > 0) {
+			binloc_sheet_pick_line($db, $rows, $tree, $line->fk_product, $line->lot_managed, $line->qty, $line->fk_entrepot, $kit_path);
+		}
+		return;
+	}
+
+	$new = array();
+	foreach ($line->batches as $obj) {
+		$wh = !empty($obj->batch_wh) ? (int) $obj->batch_wh : $line->fk_entrepot;
+		$new[] = binloc_sheet_row($line->fk_product, $wh, (int) $obj->fk_product_lot, (string) $obj->batch, (float) $obj->batch_qty);
+	}
+	if (empty($new)) {
+		$new[] = binloc_sheet_row($line->fk_product, $line->fk_entrepot, 0, '', $line->qty);
+	}
+	foreach ($new as $row) {
+		if ($row->qty <= 0) {
+			continue;
+		}
+		$row->kit_path  = $kit_path;
+		$row->kit_depth = count($kit_path);
+		$rows[] = $row;
+	}
 }
 
 /**
@@ -390,8 +622,14 @@ function binloc_sheet_rows_from_reception($db, $rec)
 function binloc_sheet_rows_from_mo_materials($db, $mo)
 {
 	$rows = array();
-	foreach (binloc_sheet_mo_open_lines($db, $mo, 'toconsume', 'consumed') as $line) {
-		binloc_sheet_pick($db, $rows, $line->fk_product, $line->lot_managed, $line->remaining, $line->fk_warehouse);
+	$lines = binloc_sheet_mo_open_lines($db, $mo, 'toconsume', 'consumed');
+	$product_ids = array();
+	foreach ($lines as $line) {
+		$product_ids[] = $line->fk_product;
+	}
+	$tree = binloc_sheet_kit_tree($db, $product_ids);
+	foreach ($lines as $line) {
+		binloc_sheet_pick_line($db, $rows, $tree, $line->fk_product, $line->lot_managed, $line->remaining, $line->fk_warehouse);
 	}
 
 	binloc_sheet_attach_locations($db, $rows);
@@ -887,7 +1125,8 @@ function binloc_sheet_any_lot_location($db, $fk_product, $fk_entrepot)
  * joined with the layout's separator), so the sheet and the bin label match.
  *
  * Walk order: warehouse prefix (or ref), then each level by option position
- * (dropdown/letter levels) or natural text order, unassigned rows last.
+ * (dropdown/letter levels) or natural text order, unassigned rows last. A kit
+ * is kept together where its first component falls (binloc_sheet_arrange_kits()).
  *
  * @param  DoliDB     $db    Database handler
  * @param  stdClass[] $rows  Sheet rows
@@ -997,6 +1236,18 @@ function binloc_sheet_finalize($db, $rows, $split)
 		}
 	}
 
+	// Kit headings have no place in the walk: they are put back above their components below
+	$headers = array();
+	$leaves = array();
+	foreach ($rows as $row) {
+		if (!empty($row->kit_header)) {
+			$headers[] = $row;
+		} else {
+			$leaves[] = $row;
+		}
+	}
+	$rows = $leaves;
+
 	usort($rows, 'binloc_sheet_compare_rows');
 
 	$groups = array();
@@ -1028,7 +1279,89 @@ function binloc_sheet_finalize($db, $rows, $split)
 		$groups[] = $group;
 	}
 
+	if (!empty($headers)) {
+		foreach ($groups as $group) {
+			$group->rows = binloc_sheet_arrange_kits($group->rows, $headers);
+		}
+	}
+
 	return array_values($groups);
+}
+
+/**
+ * Keep each kit together in a list of rows already in walk order
+ *
+ * A kit sits where its first component falls; its heading comes first, then
+ * its components in walk order (kits inside it likewise). Headings of kits
+ * with no component in the list are left out, so with one section per
+ * warehouse a heading shows in each section holding one of its components.
+ *
+ * @param  stdClass[] $leaves  Rows in walk order, no headings
+ * @param  stdClass[] $headers Kit heading rows
+ * @return stdClass[]
+ */
+function binloc_sheet_arrange_kits($leaves, $headers)
+{
+	// Position of the first component of each kit
+	$first = array();
+	foreach ($leaves as $i => $row) {
+		foreach ($row->kit_path as $kit_id) {
+			if (!isset($first[$kit_id])) {
+				$first[$kit_id] = $i;
+			}
+		}
+	}
+	if (empty($first)) {
+		return $leaves;
+	}
+
+	// kit_chain: position of each enclosing kit, then the row's own
+	$out = array();
+	foreach ($leaves as $i => $row) {
+		$chain = array();
+		foreach ($row->kit_path as $kit_id) {
+			$chain[] = $first[$kit_id];
+		}
+		$chain[] = $i;
+		$row->kit_chain = $chain;
+		$out[] = $row;
+	}
+	foreach ($headers as $header) {
+		if (!isset($first[$header->kit_id])) {
+			continue;
+		}
+		$copy = clone $header;
+		$chain = array();
+		foreach ($copy->kit_path as $kit_id) {
+			$chain[] = $first[$kit_id];
+		}
+		$copy->kit_chain = $chain;
+		$out[] = $copy;
+	}
+
+	usort($out, 'binloc_sheet_compare_kit_chain');
+	return $out;
+}
+
+/**
+ * usort comparator for binloc_sheet_arrange_kits(): ->kit_chain element-wise,
+ * the shorter first when one starts the other (a heading before its rows)
+ *
+ * @param  stdClass $a Row
+ * @param  stdClass $b Row
+ * @return int
+ */
+function binloc_sheet_compare_kit_chain($a, $b)
+{
+	$na = count($a->kit_chain);
+	$nb = count($b->kit_chain);
+	$n = min($na, $nb);
+	for ($i = 0; $i < $n; $i++) {
+		if ($a->kit_chain[$i] !== $b->kit_chain[$i]) {
+			return $a->kit_chain[$i] - $b->kit_chain[$i];
+		}
+	}
+	return $na - $nb;
 }
 
 /**

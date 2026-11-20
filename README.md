@@ -37,6 +37,7 @@ Layouts (size, padding, fonts, border, separator, what to show) are per warehous
 - **Shipment** pick sheet: the exact warehouses and lots on the shipment.
 - **Reception** place sheet: the assigned bin, a *suggested* bin, or a write-in box.
 - **Manufacturing order** pick sheet: the materials still to consume, then where the finished goods still to produce go.
+- **Kits** (products with sub-products): the kit is a heading row and its components are listed indented under it, each with its own bin and quantity. The next row that is not indented is outside the kit. Design notes: [`docs/KIT-PICK-SHEETS.md`](docs/KIT-PICK-SHEETS.md).
 
 Each launch point has its own switch in binloc setup, so every organisation turns on the one that matches how it works. A second switch keeps all warehouses in one walking list or starts each warehouse on its own page. Sheets are saved beside the commercial PDF and never replace it.
 

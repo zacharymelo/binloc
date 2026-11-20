@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.22.0] - 2026-11-20
+
+### Added
+- **Kit contents on pick sheets.** A kit (a product with sub-products) is now a shaded heading row followed by its components, indented, each with its own tick box, bin and quantity. The first row that is not indented is outside the kit; a kit inside a kit is indented one step further. Sales order and manufacturing order sheets choose component stock like any other line. Shipment sheets list the component sub-lines the shipment holds (Dolibarr 22 and later), which were previously left out. A kit stays together in the walking order. Kits are expanded only when Dolibarr moves component stock for a kit. See the user guide, *Pick and place sheets → Kits*.
+
 ## [2.21.0] - 2026-11-10
 
 ### Added

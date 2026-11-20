@@ -187,33 +187,48 @@ trait BinlocSheetPdfTrait
 
 				foreach ($group->rows as $row) {
 					$cells = $this->binlocSheetCells($row, $kind, !$split, $outputlangs);
+					$is_kit = !empty($row->kit_header);
+					// Rows inside a kit are indented; the first row back at the margin is outside it
+					$indent = empty($row->kit_depth) ? 0 : 4 * min(4, (int) $row->kit_depth);
 
 					$h = 7;
 					foreach ($cols as $key => $col) {
 						if (!isset($cells[$key]) || $cells[$key] === '') {
 							continue;
 						}
-						$pdf->SetFont('', empty($col['bold']) ? '' : 'B', $fs + $col['size']);
-						$h = max($h, $pdf->getStringHeight($col['w'], $cells[$key]) + 2);
+						$bold = !empty($col['bold']) || ($is_kit && $key === 'product');
+						$w = ($key === 'code' || $key === 'product') ? $col['w'] - $indent : $col['w'];
+						$pdf->SetFont('', $bold ? 'B' : '', $fs + $col['size']);
+						$h = max($h, $pdf->getStringHeight($w, $cells[$key]) + 2);
 					}
 
-					if ($y + $h > $bottom) {
+					// A kit heading is not left alone at the foot of a page
+					if ($y + $h + ($is_kit ? 7 : 0) > $bottom) {
 						$pdf->AddPage();
 						$y = $this->binlocSheetHeader($pdf, $object, $opts, $split ? $group : null, $outputlangs, $fs, $title, $heading);
 						$y = $this->binlocSheetColumnTitles($pdf, $cols, $y, $outputlangs, $fs);
 					}
 
+					if ($is_kit) {
+						$pdf->SetFillColor(240, 240, 240);
+						$pdf->Rect($left + $indent, $y, $right - $left - $indent, $h, 'F');
+					}
+
 					$x = $left;
 					foreach ($cols as $key => $col) {
 						if ($key === 'check') {
-							$pdf->Rect($x + 2, $y + 1.5, 4, 4);
+							if (!$is_kit) {
+								$pdf->Rect($x + $indent + 2, $y + 1.5, 4, 4);
+							}
 						} elseif ($key === 'writein') {
-							if ($row->status !== 'assigned') {
+							if ($row->status !== 'assigned' && !$is_kit) {
 								$pdf->Rect($x + 0.5, $y + 1, $col['w'] - 2, $h - 2);
 							}
 						} elseif (isset($cells[$key]) && $cells[$key] !== '') {
-							$pdf->SetFont('', empty($col['bold']) ? '' : 'B', $fs + $col['size']);
-							$pdf->MultiCell($col['w'], $h, $cells[$key], 0, $col['align'], false, 0, $x, $y + 1);
+							$bold = !empty($col['bold']) || ($is_kit && $key === 'product');
+							$shift = ($key === 'code' || $key === 'product') ? $indent : 0;
+							$pdf->SetFont('', $bold ? 'B' : '', $fs + $col['size']);
+							$pdf->MultiCell($col['w'] - $shift, $h, $cells[$key], 0, $col['align'], false, 0, $x + $shift, $y + 1);
 						}
 						$x += $col['w'];
 					}
@@ -397,6 +412,9 @@ trait BinlocSheetPdfTrait
 	protected function binlocSheetCells($row, $kind, $show_wh, $outputlangs)
 	{
 		$notes = array();
+		if (!empty($row->kit_header)) {
+			$notes[] = $outputlangs->transnoentities('SheetKitHeader');
+		}
 		if ($show_wh && $row->warehouse_ref !== '') {
 			$notes[] = $row->warehouse_ref;
 		}
@@ -474,20 +492,33 @@ trait BinlocSheetPdfTrait
 	 */
 	protected function binlocSheetSpecimenGroups($kind)
 	{
+		// Last column: 0 = ordinary row, 1 = kit heading, 2 = row inside the kit (pick sheets only)
 		$samples = array(
-			array('AL21A1', 'PART-100', 'Hex bolt M8', '', 12, 'assigned'),
-			array('AL21A4', 'PART-205', 'Hydraulic hose 1m', 'LOT-2291', 2, 'assigned'),
-			array('AR03B2', 'PUMP-7', 'Transfer pump', 'SN-000481', 1, 'suggested'),
-			array('', 'KIT-9', 'Seal kit', '', 4, 'none'),
+			array('AL21A1', 'PART-100', 'Hex bolt M8', '', 12, 'assigned', 0),
+			array('AL21A4', 'PART-205', 'Hydraulic hose 1m', 'LOT-2291', 2, 'assigned', 0),
+			array('', 'KIT-9', 'Seal kit', '', 4, 'none', 1),
+			array('AR03B4', 'SEAL-A', 'Shaft seal', '', 4, 'assigned', 2),
+			array('', 'ORING-12', 'O-ring 12 mm', '', 8, 'none', 2),
+			array('AR03B2', 'PUMP-7', 'Transfer pump', 'SN-000481', 1, 'suggested', 0),
 		);
 		$rows = array();
 		foreach ($samples as $s) {
+			if ($kind === 'place' && $s[6] === 2) {
+				continue;
+			}
 			$row = binloc_sheet_row(0, 1, 0, $s[3], $s[4]);
 			$row->code          = $s[0];
 			$row->product_ref   = $s[1];
 			$row->product_label = $s[2];
 			$row->status        = $s[5];
 			$row->warehouse_ref = 'WH-A';
+			if ($kind !== 'place' && $s[6] === 1) {
+				$row->kit_header    = true;
+				$row->fk_entrepot   = 0;
+				$row->warehouse_ref = '';
+			} elseif ($s[6] === 2) {
+				$row->kit_depth = 1;
+			}
 			$rows[] = $row;
 		}
 		$group = new stdClass();

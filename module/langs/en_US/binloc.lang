@@ -452,6 +452,7 @@ SheetStockHere = %s in stock here
 SheetOtherLocations = %s other location(s)
 SheetNoWarehouse = No warehouse
 SheetNothingToList = Nothing to pick or place.
+SheetKitHeader = Kit: pick the items below
 SheetButtonHint = Generates the sheet and opens it. It is also kept in the Documents block below, where it can be regenerated or emailed.
 SheetGenerateFailed = Could not generate the sheet: %s
 SheetStockAlreadyMoved =Stock for this shipment has already left the warehouse. Lot/serial bin assignments may have been cleared; bins shown as suggested come from the product's other assignments.

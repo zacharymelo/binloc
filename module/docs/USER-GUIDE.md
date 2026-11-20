@@ -247,6 +247,16 @@ The switches are the same ones as the Status column of the PDF models on the nat
   - **Materials to pick:** each component's quantity still to consume (what was already consumed drops off). Stock comes from the material line's warehouse, else the MO's warehouse, else any warehouse; lots are taken earliest eat-by date first, as on the sales order sheet.
   - **Finished goods to put away:** the quantity still to produce, with its bin in the MO's warehouse or a **Put in bin** box. Serials don't exist until they are produced, so a serial-tracked product shows the bin its other serials use there as *suggested*.
 
+### Kits
+
+A kit is a product with sub-products (Dolibarr's *Virtual products* option). On a pick sheet the kit is a shaded heading row with no tick box, showing how many kits are needed. Its components are listed under it, indented, each with its own tick box, bin and quantity (kits × quantity per kit). The first row that is not indented is outside the kit. A kit inside a kit is indented one step further.
+
+- **Sales orders and manufacturing orders:** component stock is chosen like any other line (pick priority, the document's warehouse, lots, shortfall notes).
+- **Shipments:** on Dolibarr 22 and later the shipment already names each component's warehouse and lots, and the sheet lists exactly those. On Dolibarr 21 the components are taken from the kit line's warehouse.
+- A kit stays together in the walking order: it sits where its first component falls. With **One section per warehouse** on, the heading is repeated in each warehouse that holds one of its components.
+- Service components are left out. Place sheets do not expand kits.
+- Kits are only expanded when Dolibarr moves the components' stock for a kit, which is the default once *Virtual products* is on. If your setup keeps kits in stock as a unit, the kit stays a single line.
+
 The **Bin** column only shows a bin in the line's own warehouse: the warehouse picked from, or the reception line's target warehouse. A bin belongs to one warehouse, so printing another warehouse's bin would send goods to a shelf the stock isn't booked into.
 
 Each line's bin status:
@@ -260,7 +270,7 @@ Lines are sorted in walking order: warehouse prefix, then each level in order, u
 
 - **Print shipment pick sheets before validating.** If stock is decremented when a shipment is validated, a serial's bin is cleared as it leaves (see below). A sheet generated after that shows a warning banner and falls back to suggested bins.
 - Sheets are saved as `REF-picksheet.pdf` / `REF-placesheet.pdf` next to the normal PDF. They never become the object's main document or the default email attachment. After generating one, the card's model list goes back to the site default.
-- Kits (sub-products), picking several orders on one sheet, and service lines are not included.
+- Picking several orders on one sheet and service lines are not included.
 
 ## Serialized / lot-tracked products
 
