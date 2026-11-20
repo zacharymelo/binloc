@@ -208,11 +208,13 @@ trait BinlocSheetPdfTrait
 				$y = $this->binlocSheetHeader($pdf, $object, $opts, $split ? $group : null, $outputlangs, $fs, $title, $heading);
 				$y = $this->binlocSheetColumnTitles($pdf, $cols, $y, $outputlangs, $fs);
 
-				foreach ($group->rows as $row) {
+				foreach ($group->rows as $i => $row) {
 					$cells = $this->binlocSheetCells($row, $kind, !$split, $outputlangs);
 					$is_kit = !empty($row->kit_header);
 					// Rows inside a kit are indented; the first row back at the margin is outside it
-					$indent = empty($row->kit_depth) ? 0 : 4 * min(4, (int) $row->kit_depth);
+					$depth = empty($row->kit_depth) ? 0 : min(4, (int) $row->kit_depth);
+					$indent = 4 * $depth;
+					$next_depth = empty($group->rows[$i + 1]->kit_depth) ? 0 : min(4, (int) $group->rows[$i + 1]->kit_depth);
 
 					$h = 7;
 					foreach ($cols as $key => $col) {
@@ -256,6 +258,19 @@ trait BinlocSheetPdfTrait
 						$x += $col['w'];
 					}
 					$pdf->Line($left, $y + $h, $right, $y + $h);
+					if ($depth > 0) {
+						// A rail down the left of each kit the row is in, and a heavy rule under the kit's last row
+						$pdf->SetDrawColor(70, 70, 70);
+						$pdf->SetLineWidth(0.6);
+						for ($d = 1; $d <= $depth; $d++) {
+							$pdf->Line($left + 4 * $d - 2.4, $y, $left + 4 * $d - 2.4, $y + $h);
+						}
+						if ($next_depth < $depth) {
+							$pdf->Line($left + 4 * $next_depth + 1.6, $y + $h, $right, $y + $h);
+						}
+						$pdf->SetDrawColor(128, 128, 128);
+						$pdf->SetLineWidth(0.2);
+					}
 					$y += $h;
 				}
 			}

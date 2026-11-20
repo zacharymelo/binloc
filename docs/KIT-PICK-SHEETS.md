@@ -18,7 +18,7 @@ A Dolibarr kit (a product with sub-products, *Virtual products* in the Products 
 
 - The kit's own row is a heading: shaded, no tick box, no bin, the number of kits as quantity.
 - Its components follow, indented, each with its own tick box, bin and quantity (kits × quantity per kit).
-- The first row that is not indented is outside the kit.
+- A dark rail runs down the left of the kit's rows and a heavy rule closes it under the last component. The first row after the rule, back at the margin, is outside the kit.
 - A kit inside a kit is a heading at the component indent, with its own components one step further in.
 
 ## Rules

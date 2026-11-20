@@ -41,7 +41,7 @@ class InterfaceBinlocTrigger extends DolibarrTriggers
 		$this->description = 'Binloc trigger — clears bin locations on stock movements and lot deletion';
 		// Core types this as its keywords only, but getVersion() returns any other value as is
 		// @phan-suppress-next-line PhanTypeMismatchPropertyProbablyReal
-		$this->version     = '2.22.1'; // @phpstan-ignore assign.propertyType
+		$this->version     = '2.22.2'; // @phpstan-ignore assign.propertyType
 		$this->picto       = 'stock';
 	}
 

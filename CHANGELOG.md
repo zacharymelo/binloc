@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.22.2] - 2026-11-20
+
+### Changed
+- **Clearer end of a kit on pick sheets.** A dark line now runs down the left of a kit's component rows, and a heavy rule closes the kit under its last component. A kit inside a kit gets its own line.
+
 ## [2.22.1] - 2026-11-20
 
 ### Fixed

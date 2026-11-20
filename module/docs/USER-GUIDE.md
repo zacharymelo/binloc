@@ -249,7 +249,7 @@ The switches are the same ones as the Status column of the PDF models on the nat
 
 ### Kits
 
-A kit is a product with sub-products (Dolibarr's *Virtual products* option). On a pick sheet the kit is a shaded heading row with no tick box, showing how many kits are needed. Its components are listed under it, indented, each with its own tick box, bin and quantity (kits × quantity per kit). The first row that is not indented is outside the kit. A kit inside a kit is indented one step further.
+A kit is a product with sub-products (Dolibarr's *Virtual products* option). On a pick sheet the kit is a shaded heading row with no tick box, showing how many kits are needed. Its components are listed under it, indented, each with its own tick box, bin and quantity (kits × quantity per kit). A dark line runs down the left of the kit's rows and a heavy rule closes the kit under its last component, so the first row after the rule, back at the margin, is outside the kit. A kit inside a kit is indented one step further, with its own line.
 
 - **Sales orders and manufacturing orders:** component stock is chosen like any other line (pick priority, the document's warehouse, lots, shortfall notes).
 - **Shipments:** on Dolibarr 22 and later the shipment already names each component's warehouse and lots, and the sheet lists exactly those. On Dolibarr 21 the components are taken from the kit line's warehouse.
